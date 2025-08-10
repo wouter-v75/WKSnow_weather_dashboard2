@@ -318,7 +318,51 @@
             display: grid;
             grid-template-columns: 1fr 1fr;
             gap: 10px;
+            flex: 0 0 auto;
+            margin-bottom: 8px;
+        }
+
+        .webcam-section {
             flex: 1;
+            min-height: 0;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .webcam-title {
+            color: white !important;
+            text-shadow: 2px 2px 6px rgba(0,0,0,0.9) !important;
+            font-size: 0.7rem !important;
+            margin-bottom: 6px !important;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.4) !important;
+            padding-bottom: 4px !important;
+            text-align: center;
+        }
+
+        .webcam-container {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 0;
+            position: relative;
+        }
+
+        .webcam-image {
+            width: 100%;
+            height: auto;
+            max-height: 100%;
+            object-fit: cover;
+            border-radius: 8px;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+        }
+
+        .webcam-error {
+            color: rgba(255, 255, 255, 0.7);
+            font-size: 0.8rem;
+            text-align: center;
+            text-shadow: 1px 1px 2px rgba(0,0,0,0.6);
         }
 
         .temp-chart-container {
@@ -526,6 +570,24 @@
                             <div class="detail-value" id="bottom-snow-day">-- cm</div>
                             <div class="detail-label">Last Day</div>
                         </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Webcam Section -->
+            <div class="webcam-section">
+                <h3 class="webcam-title">📹 Vidsynexpressener Hafjell stations observations</h3>
+                <div class="webcam-container">
+                    <img 
+                        src="https://aws-cdn.norwaylive.tv/snapshots/ffbb7144-562d-4753-919f-52ebd0b72cbe/kam4utsnitt1.jpg" 
+                        alt="Hafjell Webcam View" 
+                        class="webcam-image"
+                        id="hafjell-webcam"
+                        onload="console.log('Hafjell webcam loaded successfully')"
+                        onerror="console.log('Hafjell webcam failed to load'); this.style.display='none'; document.querySelector('.webcam-error').style.display='block';"
+                    />
+                    <div class="webcam-error" style="display: none;">
+                        <span>📷 Webcam unavailable</span>
                     </div>
                 </div>
             </div>
@@ -1069,6 +1131,17 @@
             }
         }
 
+        // Refresh webcam image
+        function refreshWebcam() {
+            const webcamImg = document.getElementById('hafjell-webcam');
+            if (webcamImg) {
+                const timestamp = new Date().getTime();
+                const baseUrl = 'https://aws-cdn.norwaylive.tv/snapshots/ffbb7144-562d-4753-919f-52ebd0b72cbe/kam4utsnitt1.jpg';
+                webcamImg.src = `${baseUrl}?t=${timestamp}`;
+                console.log('Webcam image refreshed');
+            }
+        }
+
         // Helper functions
         function getWeatherIcon(symbolCode) {
             if (symbolCode.includes('clear')) return '☀️';
@@ -1119,6 +1192,9 @@
                     updateForecast()
                 ]);
                 
+                // Refresh webcam image
+                refreshWebcam();
+                
                 // Update temperature chart if we have data from at least one source
                 const hafjellTopTemp = hafjellTemps?.top || null;
                 const hafjellBottomTemp = hafjellTemps?.bottom || null;
@@ -1159,7 +1235,7 @@
             
             // Auto-refresh every 5 minutes (300,000 milliseconds)
             const refreshInterval = setInterval(async () => {
-                console.log('Auto-refreshing all data including Hafjell stations...');
+                console.log('Auto-refreshing all data including Hafjell stations and webcam...');
                 await refreshAllData();
             }, 5 * 60 * 1000);
             
