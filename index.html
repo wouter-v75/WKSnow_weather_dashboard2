@@ -426,7 +426,7 @@
             <div class="card-header">
                 <div class="card-icon">📈</div>
                 <div class="card-title">
-                    6-Hour Temperature Trend
+                    12-Hour Temperature Trend
                     <span class="status-indicator status-online" id="graph-status"></span>
                 </div>
             </div>
@@ -572,15 +572,7 @@
         function initTempChart() {
             const ctx = document.getElementById('tempChart').getContext('2d');
             
-            // Initialize with last 6 hours of mock data
-            const now = new Date();
-            for (let i = 5; i >= 0; i--) {
-                const time = new Date(now.getTime() - i * 60 * 60 * 1000);
-                temperatureHistory.labels.push(time.toLocaleTimeString('en-NO', {hour: '2-digit', minute: '2-digit'}));
-                temperatureHistory.outdoor.push(8 + Math.random() * 4);
-                temperatureHistory.hafjellTop.push(11 + Math.random() * 3);
-                temperatureHistory.hafjellBottom.push(18 + Math.random() * 4);
-            }
+            // Initialize empty - no mock data, only real captured data will be shown
             
             tempChart = new Chart(ctx, {
                 type: 'line',
@@ -660,25 +652,28 @@
                         point: {
                             radius: 2,
                             hoverRadius: 4
+                        },
+                        line: {
+                            spanGaps: true  // Connect points even when there are null values
                         }
                     }
                 }
             });
         }
 
-        // Update temperature chart with new data
+        // Update temperature chart with new data (accepts partial data)
         function updateTempChart(outdoorTemp, hafjellTopTemp, hafjellBottomTemp) {
             const now = new Date();
             const timeLabel = now.toLocaleTimeString('en-NO', {hour: '2-digit', minute: '2-digit'});
             
-            // Add new data point
+            // Add new data point (use null for missing data)
             temperatureHistory.labels.push(timeLabel);
-            temperatureHistory.outdoor.push(parseFloat(outdoorTemp) || 0);
-            temperatureHistory.hafjellTop.push(parseFloat(hafjellTopTemp) || 0);
-            temperatureHistory.hafjellBottom.push(parseFloat(hafjellBottomTemp) || 0);
+            temperatureHistory.outdoor.push(outdoorTemp ? parseFloat(outdoorTemp) : null);
+            temperatureHistory.hafjellTop.push(hafjellTopTemp ? parseFloat(hafjellTopTemp) : null);
+            temperatureHistory.hafjellBottom.push(hafjellBottomTemp ? parseFloat(hafjellBottomTemp) : null);
             
-            // Keep only last 6 hours (6 data points)
-            if (temperatureHistory.labels.length > 6) {
+            // Keep only last 12 hours (12 data points)
+            if (temperatureHistory.labels.length > 12) {
                 temperatureHistory.labels.shift();
                 temperatureHistory.outdoor.shift();
                 temperatureHistory.hafjellTop.shift();
@@ -722,8 +717,8 @@
                 console.error('Error updating Homey outdoor sensors:', error);
                 document.getElementById('sensor-status').className = 'status-indicator status-offline';
                 
-                // Fallback to simulated data if Homey is not accessible
-                return await updatePersonalSensorsFallback();
+                // No fallback mock data - keep previous values or show offline status
+                return null;
             }
         }
 
@@ -814,33 +809,6 @@
             return data;
         }
 
-        // Fallback sensor data (if Homey is not accessible) - outdoor only
-        async function updatePersonalSensorsFallback() {
-            const outdoorData = await simulateSensorData('outdoor');
-
-            document.getElementById('outdoor-temp').textContent = `${outdoorData.temperature}°C`;
-            document.getElementById('outdoor-humidity').textContent = `${outdoorData.humidity}%`;
-            
-            return outdoorData.temperature;
-        }
-
-        // Simulate sensor data (replace with actual sensor API calls)
-        async function simulateSensorData(type) {
-            // This simulates your actual sensor data
-            // Replace this function with actual API calls to your sensors
-            return new Promise(resolve => {
-                setTimeout(() => {
-                    const baseTemp = type === 'indoor' ? 22 : 10;
-                    const baseHumidity = type === 'indoor' ? 45 : 65;
-                    
-                    resolve({
-                        temperature: (baseTemp + (Math.random() - 0.5) * 4).toFixed(1),
-                        humidity: Math.round(baseHumidity + (Math.random() - 0.5) * 20)
-                    });
-                }, 500);
-            });
-        }
-
         // Update Hafjell weather stations with enhanced logging
         async function updateHafjellWeather() {
             console.log('Fetching Hafjell weather station data...');
@@ -873,8 +841,8 @@
                     console.log('Hafjell weather stations updated successfully');
                     
                     return {
-                        top: hafjellData.top.temperature,
-                        bottom: hafjellData.bottom.temperature
+                        top: parseFloat(hafjellData.top.temperature),
+                        bottom: parseFloat(hafjellData.bottom.temperature)
                     };
                 } else {
                     throw new Error('No data received from Hafjell');
@@ -883,9 +851,9 @@
                 console.error('Error updating Hafjell weather:', error);
                 document.getElementById('hafjell-status').className = 'status-indicator status-offline';
                 
-                // Use mock data if scraping fails
-                console.log('Using fallback Hafjell data due to error');
-                return updateHafjellWeatherMock();
+                // No mock data - keep previous values or show offline status
+                console.log('Hafjell data unavailable - showing offline status');
+                return null;
             }
         }
 
@@ -928,30 +896,6 @@
             };
         }
 
-        // Mock Hafjell data (fallback)
-        function updateHafjellWeatherMock() {
-            // Top station
-            const topTemp = (11 + (Math.random() - 0.5) * 3).toFixed(1);
-            const bottomTemp = (20 + (Math.random() - 0.5) * 4).toFixed(1);
-            
-            document.getElementById('top-temp').textContent = topTemp + '°C';
-            document.getElementById('top-desc').textContent = 'Mostly sunny';
-            document.getElementById('top-wind').textContent = (5.6 + (Math.random() - 0.5) * 2).toFixed(1) + ' m/s';
-            document.getElementById('top-snow').textContent = '65 cm';
-            document.getElementById('top-snow-day').textContent = Math.floor(Math.random() * 3) + ' cm';
-            document.getElementById('top-icon').textContent = '☀️';
-            
-            // Bottom station
-            document.getElementById('bottom-temp').textContent = bottomTemp + '°C';
-            document.getElementById('bottom-desc').textContent = 'Mostly sunny';
-            document.getElementById('bottom-wind').textContent = (2.0 + (Math.random() - 0.5) * 1.5).toFixed(1) + ' m/s';
-            document.getElementById('bottom-snow').textContent = '65 cm';
-            document.getElementById('bottom-snow-day').textContent = Math.floor(Math.random() * 3) + ' cm';
-            document.getElementById('bottom-icon').textContent = '☀️';
-            
-            return { top: topTemp, bottom: bottomTemp };
-        }
-
         function getWeatherIconFromCondition(condition) {
             const conditionLower = condition.toLowerCase();
             if (conditionLower.includes('sunny') || conditionLower.includes('clear')) return '☀️';
@@ -987,8 +931,8 @@
                 console.error('Error updating forecast:', error);
                 document.getElementById('forecast-status').className = 'status-indicator status-offline';
                 
-                // Use mock forecast data
-                displayMockForecast();
+                // No mock forecast data - keep previous values or show offline status
+                console.log('YR.no forecast unavailable - showing offline status');
             }
         }
 
@@ -1015,32 +959,6 @@
                     <div class="forecast-icon">${getWeatherIcon(symbol)}</div>
                     <div class="forecast-temp">${temp}°C</div>
                     <div class="forecast-desc">${getWeatherDescription(symbol)}</div>
-                `;
-                forecastContent.appendChild(forecastItem);
-            });
-        }
-
-        // Mock forecast data
-        function displayMockForecast() {
-            const forecastContent = document.getElementById('forecast-content');
-            forecastContent.innerHTML = '';
-            
-            const now = new Date();
-            const mockData = [
-                { time: now.getHours() + ':00', temp: 12 + Math.random() * 3, icon: '⛅', desc: 'Partly cloudy' },
-                { time: (now.getHours() + 3) % 24 + ':00', temp: 14 + Math.random() * 2, icon: '☁️', desc: 'Cloudy' },
-                { time: (now.getHours() + 6) % 24 + ':00', temp: 11 + Math.random() * 3, icon: '🌧️', desc: 'Light rain' },
-                { time: (now.getHours() + 9) % 24 + ':00', temp: 9 + Math.random() * 2, icon: '☁️', desc: 'Overcast' }
-            ];
-            
-            mockData.forEach(item => {
-                const forecastItem = document.createElement('div');
-                forecastItem.className = 'forecast-item';
-                forecastItem.innerHTML = `
-                    <div class="forecast-time">${item.time}</div>
-                    <div class="forecast-icon">${item.icon}</div>
-                    <div class="forecast-temp">${Math.round(item.temp)}°C</div>
-                    <div class="forecast-desc">${item.desc}</div>
                 `;
                 forecastContent.appendChild(forecastItem);
             });
@@ -1095,10 +1013,17 @@
                     updateForecast()
                 ]);
                 
-                // Update temperature chart
-                if (outdoorTemp && hafjellTemps) {
-                    updateTempChart(outdoorTemp, hafjellTemps.top, hafjellTemps.bottom);
+                // Update temperature chart if we have data from at least one source
+                const hafjellTopTemp = hafjellTemps?.top || null;
+                const hafjellBottomTemp = hafjellTemps?.bottom || null;
+                
+                if (outdoorTemp || hafjellTopTemp || hafjellBottomTemp) {
+                    updateTempChart(outdoorTemp, hafjellTopTemp, hafjellBottomTemp);
                     document.getElementById('graph-status').className = 'status-indicator status-online';
+                    console.log('Chart updated with available data - Outdoor:', outdoorTemp, 'Top:', hafjellTopTemp, 'Bottom:', hafjellBottomTemp);
+                } else {
+                    console.log('No temperature data available from any source');
+                    document.getElementById('graph-status').className = 'status-indicator status-offline';
                 }
                 
                 updateTimestamp();
@@ -1134,7 +1059,7 @@
             // Update timestamp every minute
             setInterval(updateTimestamp, 60 * 1000);
             
-            console.log('Dashboard initialized with 5-minute auto-refresh for all data sources');
+            console.log('Dashboard initialized with 5-minute auto-refresh - real data only, 12-hour temperature history, chart updates when any sensor has data');
         }
 
         // Start the dashboard when page loads
