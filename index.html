@@ -153,6 +153,78 @@
             display: grid;
             grid-template-columns: 1fr 1fr;
             gap: 8px;
+            margin-bottom: 12px;
+        }
+
+        .temp-trend-section {
+            flex: 1;
+            min-height: 0;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .trend-title {
+            color: white !important;
+            text-shadow: 2px 2px 6px rgba(0,0,0,0.9) !important;
+            font-size: 0.8rem !important;
+            margin-bottom: 8px !important;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.4) !important;
+            padding-bottom: 4px !important;
+            text-align: center;
+        }
+
+        .lifts-grid {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 6px;
+            flex: 1;
+        }
+
+        .lift-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 6px 8px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 8px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            backdrop-filter: blur(6px);
+            -webkit-backdrop-filter: blur(6px);
+        }
+
+        .lift-name {
+            font-size: 0.7rem;
+            font-weight: 600;
+            color: white;
+            text-shadow: 1px 1px 2px rgba(0,0,0,0.8);
+        }
+
+        .lift-status {
+            font-size: 0.7rem;
+            font-weight: bold;
+            text-shadow: 1px 1px 2px rgba(0,0,0,0.8);
+            padding: 2px 6px;
+            border-radius: 4px;
+            min-width: 50px;
+            text-align: center;
+        }
+
+        .lift-status.open {
+            color: #27ae60;
+            background: rgba(39, 174, 96, 0.2);
+            border: 1px solid rgba(39, 174, 96, 0.4);
+        }
+
+        .lift-status.closed {
+            color: #e74c3c;
+            background: rgba(231, 76, 60, 0.2);
+            border: 1px solid rgba(231, 76, 60, 0.4);
+        }
+
+        .lift-status.unknown {
+            color: rgba(255, 255, 255, 0.7);
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.3);
         }
 
         .sensor-item {
@@ -519,18 +591,53 @@
                     <div class="sensor-label">Humidity</div>
                 </div>
             </div>
-        </div>
-
-        <!-- Temperature Graph Card -->
-        <div class="card" id="temp-graph-card">
-            <div class="card-header">
-                <div class="card-title">
-                    12-Hour Temperature Trend
-                    <span class="status-indicator status-online" id="graph-status"></span>
+            
+            <!-- Temperature Trend Section -->
+            <div class="temp-trend-section">
+                <h3 class="trend-title">12-Hour Temperature Trend</h3>
+                <div class="temp-chart-container">
+                    <canvas id="tempChart" class="temp-chart"></canvas>
                 </div>
             </div>
-            <div class="temp-chart-container">
-                <canvas id="tempChart" class="temp-chart"></canvas>
+        </div>
+
+        <!-- Lifts Status Card -->
+        <div class="card" id="lifts-card">
+            <div class="card-header">
+                <div class="card-title">
+                    Lifts
+                    <span class="status-indicator status-online" id="lifts-status"></span>
+                </div>
+            </div>
+            <div class="lifts-grid" id="lifts-content">
+                <div class="lift-item">
+                    <div class="lift-name">BACKYARDHEISEN</div>
+                    <div class="lift-status" id="lift-backyardheisen">Loading...</div>
+                </div>
+                <div class="lift-item">
+                    <div class="lift-name">HAFJELL 360</div>
+                    <div class="lift-status" id="lift-hafjell360">Loading...</div>
+                </div>
+                <div class="lift-item">
+                    <div class="lift-name">GONDOLEN</div>
+                    <div class="lift-status" id="lift-gondolen">Loading...</div>
+                </div>
+                <div class="lift-item">
+                    <div class="lift-name">VIDSYNEXPRESSEN</div>
+                    <div class="lift-status" id="lift-vidsynexpressen">Loading...</div>
+                </div>
+                <div class="lift-item">
+                    <div class="lift-name">HAFJELLHEIS 1</div>
+                    <div class="lift-status" id="lift-hafjellheis1">Loading...</div>
+                </div>
+                <div class="lift-item">
+                    <div class="lift-name">HAFJELLHEIS 2</div>
+                    <div class="lift-status" id="lift-hafjellheis2">Loading...</div>
+                </div>
+                <div class="lift-item">
+                    <div class="lift-name">KJUSHEISEN</div>
+                    <div class="lift-status" id="lift-kjusheisen">Loading...</div>
+                </div>
             </div>
         </div>
 
