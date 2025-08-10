@@ -247,6 +247,7 @@
             align-items: center;
             padding: 4px 0;
             border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+            gap: 4px;
         }
 
         .forecast-item:last-child {
@@ -254,31 +255,55 @@
         }
 
         .forecast-time {
-            width: 40px;
+            width: 35px;
             font-weight: 600;
             color: white;
-            font-size: 0.7rem;
+            font-size: 0.65rem;
             text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
         }
 
         .forecast-icon {
-            font-size: 0.9rem;
-            margin: 0 6px;
+            font-size: 0.8rem;
+            margin: 0 4px;
             text-shadow: 0 0 10px rgba(255, 255, 255, 0.5);
         }
 
         .forecast-temp {
             font-weight: bold;
             color: white;
-            font-size: 0.7rem;
+            font-size: 0.65rem;
             text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
+            width: 30px;
+        }
+
+        .forecast-wind {
+            display: flex;
+            align-items: center;
+            gap: 2px;
+            color: white;
+            font-size: 0.6rem;
+            text-shadow: 1px 1px 2px rgba(0,0,0,0.8);
+        }
+
+        .wind-arrow {
+            font-size: 0.7rem;
+            display: inline-block;
+            transform-origin: center;
+            transition: transform 0.3s ease;
+        }
+
+        .wind-speed {
+            font-size: 0.6rem;
+            min-width: 25px;
         }
 
         .forecast-desc {
             margin-left: auto;
             color: rgba(255, 255, 255, 0.8);
-            font-size: 0.6rem;
+            font-size: 0.55rem;
             text-shadow: 1px 1px 2px rgba(0,0,0,0.6);
+            flex: 1;
+            text-align: right;
         }
 
         .status-indicator {
@@ -478,7 +503,6 @@
         <!-- Outdoor Sensors Card -->
         <div class="card" id="sensors-card">
             <div class="card-header">
-                <div class="card-icon">🌡️</div>
                 <div class="card-title">
                     Outdoor Sensors
                     <span class="status-indicator status-online" id="sensor-status"></span>
@@ -499,7 +523,6 @@
         <!-- Temperature Graph Card -->
         <div class="card" id="temp-graph-card">
             <div class="card-header">
-                <div class="card-icon">📈</div>
                 <div class="card-title">
                     12-Hour Temperature Trend
                     <span class="status-indicator status-online" id="graph-status"></span>
@@ -513,7 +536,6 @@
         <!-- Hafjell Weather Stations Card -->
         <div class="card" id="hafjell-card">
             <div class="card-header">
-                <div class="card-icon">🎿</div>
                 <div class="card-title">
                     Hafjell Stations
                     <span class="status-indicator status-online" id="hafjell-status"></span>
@@ -576,7 +598,7 @@
 
             <!-- Webcam Section -->
             <div class="webcam-section">
-                <h3 class="webcam-title">📹 Vidsynexpressen</h3>
+                <h3 class="webcam-title">Vidsynexpressen</h3>
                 <div class="webcam-container">
                     <img 
                         src="https://aws-cdn.norwaylive.tv/snapshots/ffbb7144-562d-4753-919f-52ebd0b72cbe/kam4utsnitt1.jpg" 
@@ -598,7 +620,6 @@
             <!-- Today's Forecast Card -->
             <div class="card forecast-card" id="forecast-card">
                 <div class="card-header">
-                    <div class="card-icon">📅</div>
                     <div class="card-title">
                         Mosetertoppen Today
                         <span class="status-indicator status-online" id="forecast-status"></span>
@@ -614,7 +635,6 @@
             <!-- Tomorrow's Forecast Card -->
             <div class="card forecast-card" id="tomorrow-card">
                 <div class="card-header">
-                    <div class="card-icon">📆</div>
                     <div class="card-title">
                         Tomorrow's Forecast
                         <span class="status-indicator status-online" id="tomorrow-status"></span>
@@ -1090,12 +1110,21 @@
                 const temp = Math.round(item.data.instant.details.air_temperature);
                 const symbol = item.data.next_1_hours?.summary?.symbol_code || 'clearsky_day';
                 
+                // Extract wind data
+                const windSpeed = item.data.instant.details.wind_speed || 0;
+                const windDirection = item.data.instant.details.wind_from_direction;
+                const windArrow = getWindArrow(windDirection);
+                
                 const forecastItem = document.createElement('div');
                 forecastItem.className = 'forecast-item';
                 forecastItem.innerHTML = `
                     <div class="forecast-time">${time.toLocaleTimeString('en-NO', {hour: '2-digit', minute: '2-digit'})}</div>
                     <div class="forecast-icon">${getWeatherIcon(symbol)}</div>
                     <div class="forecast-temp">${temp}°C</div>
+                    <div class="forecast-wind">
+                        <span class="wind-arrow">${windArrow}</span>
+                        <span class="wind-speed">${windSpeed.toFixed(1)}</span>
+                    </div>
                     <div class="forecast-desc">${getWeatherDescription(symbol)}</div>
                 `;
                 forecastContent.appendChild(forecastItem);
@@ -1142,12 +1171,21 @@
                 const temp = Math.round(item.data.instant.details.air_temperature);
                 const symbol = item.data.next_1_hours?.summary?.symbol_code || 'clearsky_day';
                 
+                // Extract wind data
+                const windSpeed = item.data.instant.details.wind_speed || 0;
+                const windDirection = item.data.instant.details.wind_from_direction;
+                const windArrow = getWindArrow(windDirection);
+                
                 const forecastItem = document.createElement('div');
                 forecastItem.className = 'forecast-item';
                 forecastItem.innerHTML = `
                     <div class="forecast-time">${time.toLocaleTimeString('en-NO', {hour: '2-digit', minute: '2-digit'})}</div>
                     <div class="forecast-icon">${getWeatherIcon(symbol)}</div>
                     <div class="forecast-temp">${temp}°C</div>
+                    <div class="forecast-wind">
+                        <span class="wind-arrow">${windArrow}</span>
+                        <span class="wind-speed">${windSpeed.toFixed(1)}</span>
+                    </div>
                     <div class="forecast-desc">${getWeatherDescription(symbol)}</div>
                 `;
                 tomorrowContent.appendChild(forecastItem);
@@ -1163,6 +1201,31 @@
                 webcamImg.src = `${baseUrl}?t=${timestamp}`;
                 console.log('Webcam image refreshed');
             }
+        }
+
+        // Convert wind direction degrees to arrow symbol
+        function getWindArrow(windDirection) {
+            if (!windDirection && windDirection !== 0) return '○';
+            
+            // Convert wind direction to 8-point compass with arrows
+            const directions = [
+                { min: 337.5, max: 360, arrow: '↓' },   // N (wind from north, blowing south)
+                { min: 0, max: 22.5, arrow: '↓' },     // N
+                { min: 22.5, max: 67.5, arrow: '↙' },  // NE
+                { min: 67.5, max: 112.5, arrow: '←' }, // E  
+                { min: 112.5, max: 157.5, arrow: '↖' }, // SE
+                { min: 157.5, max: 202.5, arrow: '↑' }, // S
+                { min: 202.5, max: 247.5, arrow: '↗' }, // SW
+                { min: 247.5, max: 292.5, arrow: '→' }, // W
+                { min: 292.5, max: 337.5, arrow: '↘' }  // NW
+            ];
+            
+            for (const dir of directions) {
+                if (windDirection >= dir.min && windDirection < dir.max) {
+                    return dir.arrow;
+                }
+            }
+            return '○'; // Default if no match
         }
 
         // Helper functions
