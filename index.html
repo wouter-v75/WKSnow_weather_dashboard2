@@ -576,7 +576,7 @@
 
             <!-- Webcam Section -->
             <div class="webcam-section">
-                <h3 class="webcam-title">📹 Vidsynexpressener Hafjell stations observations</h3>
+                <h3 class="webcam-title">📹 Vidsynexpressen</h3>
                 <div class="webcam-container">
                     <img 
                         src="https://aws-cdn.norwaylive.tv/snapshots/ffbb7144-562d-4753-919f-52ebd0b72cbe/kam4utsnitt1.jpg" 
@@ -1051,18 +1051,41 @@
             }
         }
 
-        // Display forecast data
+        // Display forecast data - today between 06:00-20:00 every other hour
         function displayForecast(data) {
             const forecastContent = document.getElementById('forecast-content');
             forecastContent.innerHTML = '';
             
             const today = new Date().toDateString();
-            const todayForecasts = data.properties.timeseries.filter(item => {
-                const itemDate = new Date(item.time).toDateString();
-                return itemDate === today;
-            }).slice(0, 3); // Show next 3 time periods for today (smaller card)
+            const now = new Date();
             
-            todayForecasts.forEach(item => {
+            // Filter for today's data between 06:00 and 20:00, every other hour
+            const targetHours = [6, 8, 10, 12, 14, 16, 18, 20];
+            const todayForecasts = data.properties.timeseries.filter(item => {
+                const itemDate = new Date(item.time);
+                const itemDateString = itemDate.toDateString();
+                const itemHour = itemDate.getHours();
+                
+                // Include if it's today and within our target hours, or if it's a future time today
+                return itemDateString === today && 
+                       (targetHours.includes(itemHour) || itemDate > now) &&
+                       itemHour >= 6 && itemHour <= 20;
+            });
+            
+            // If we don't have specific hourly data, get the next available forecasts for today
+            let displayForecasts = [];
+            if (todayForecasts.length === 0) {
+                // Fallback: get next few forecasts for today
+                displayForecasts = data.properties.timeseries.filter(item => {
+                    const itemDate = new Date(item.time);
+                    return itemDate.toDateString() === today && itemDate > now;
+                }).slice(0, 4);
+            } else {
+                // Use filtered forecasts, but limit to reasonable number for display
+                displayForecasts = todayForecasts.slice(0, 5);
+            }
+            
+            displayForecasts.forEach(item => {
                 const time = new Date(item.time);
                 const temp = Math.round(item.data.instant.details.air_temperature);
                 const symbol = item.data.next_1_hours?.summary?.symbol_code || 'clearsky_day';
@@ -1079,7 +1102,7 @@
             });
         }
 
-        // Display tomorrow's forecast data
+        // Display tomorrow's forecast data - between 06:00-18:00 every 3 hours
         function displayTomorrowForecast(data) {
             const tomorrowContent = document.getElementById('tomorrow-content');
             tomorrowContent.innerHTML = '';
@@ -1088,47 +1111,47 @@
             tomorrow.setDate(tomorrow.getDate() + 1);
             const tomorrowDateString = tomorrow.toDateString();
             
+            // Filter for tomorrow's data between 06:00 and 18:00, every 3 hours
+            const targetHours = [6, 9, 12, 15, 18];
             const tomorrowForecasts = data.properties.timeseries.filter(item => {
-                const itemDate = new Date(item.time).toDateString();
-                return itemDate === tomorrowDateString;
-            }).slice(0, 3); // Show 3 time periods for tomorrow (smaller card)
+                const itemDate = new Date(item.time);
+                const itemDateString = itemDate.toDateString();
+                const itemHour = itemDate.getHours();
+                
+                return itemDateString === tomorrowDateString && 
+                       targetHours.includes(itemHour);
+            });
             
-            // If we don't have tomorrow's data, try to get early morning hours
+            // If we don't have specific hourly data, try to get forecasts for tomorrow
+            let displayForecasts = [];
             if (tomorrowForecasts.length === 0) {
-                console.log('No tomorrow data found, using next available forecasts');
-                const futureForecasts = data.properties.timeseries.slice(8, 11); // Skip today's data, show 3 items
-                futureForecasts.forEach(item => {
-                    const time = new Date(item.time);
-                    const temp = Math.round(item.data.instant.details.air_temperature);
-                    const symbol = item.data.next_1_hours?.summary?.symbol_code || 'clearsky_day';
-                    
-                    const forecastItem = document.createElement('div');
-                    forecastItem.className = 'forecast-item';
-                    forecastItem.innerHTML = `
-                        <div class="forecast-time">${time.toLocaleTimeString('en-NO', {hour: '2-digit', minute: '2-digit'})}</div>
-                        <div class="forecast-icon">${getWeatherIcon(symbol)}</div>
-                        <div class="forecast-temp">${temp}°C</div>
-                        <div class="forecast-desc">${getWeatherDescription(symbol)}</div>
-                    `;
-                    tomorrowContent.appendChild(forecastItem);
-                });
+                console.log('No specific tomorrow hourly data found, using available forecasts');
+                // Fallback: get forecasts for tomorrow, filtered by reasonable hours
+                displayForecasts = data.properties.timeseries.filter(item => {
+                    const itemDate = new Date(item.time);
+                    const itemHour = itemDate.getHours();
+                    return itemDate.toDateString() === tomorrowDateString && 
+                           itemHour >= 6 && itemHour <= 18;
+                }).filter((item, index) => index % 3 === 0).slice(0, 4); // Every 3rd item, max 4
             } else {
-                tomorrowForecasts.forEach(item => {
-                    const time = new Date(item.time);
-                    const temp = Math.round(item.data.instant.details.air_temperature);
-                    const symbol = item.data.next_1_hours?.summary?.symbol_code || 'clearsky_day';
-                    
-                    const forecastItem = document.createElement('div');
-                    forecastItem.className = 'forecast-item';
-                    forecastItem.innerHTML = `
-                        <div class="forecast-time">${time.toLocaleTimeString('en-NO', {hour: '2-digit', minute: '2-digit'})}</div>
-                        <div class="forecast-icon">${getWeatherIcon(symbol)}</div>
-                        <div class="forecast-temp">${temp}°C</div>
-                        <div class="forecast-desc">${getWeatherDescription(symbol)}</div>
-                    `;
-                    tomorrowContent.appendChild(forecastItem);
-                });
+                displayForecasts = tomorrowForecasts;
             }
+            
+            displayForecasts.forEach(item => {
+                const time = new Date(item.time);
+                const temp = Math.round(item.data.instant.details.air_temperature);
+                const symbol = item.data.next_1_hours?.summary?.symbol_code || 'clearsky_day';
+                
+                const forecastItem = document.createElement('div');
+                forecastItem.className = 'forecast-item';
+                forecastItem.innerHTML = `
+                    <div class="forecast-time">${time.toLocaleTimeString('en-NO', {hour: '2-digit', minute: '2-digit'})}</div>
+                    <div class="forecast-icon">${getWeatherIcon(symbol)}</div>
+                    <div class="forecast-temp">${temp}°C</div>
+                    <div class="forecast-desc">${getWeatherDescription(symbol)}</div>
+                `;
+                tomorrowContent.appendChild(forecastItem);
+            });
         }
 
         // Refresh webcam image
