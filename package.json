@@ -1,5 +1,0 @@
-{
-  "scripts": {
-    "build": "mkdir -p public && cp -r src/* public/"
-  }
-}
