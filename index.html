@@ -1,159 +1,1144 @@
-/* Updated CSS for more visible background and less purple */
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="WK Snow Weather Dashboard - Real-time weather data from Homey Pro, Hafjell stations, and YR.no forecast">
+    <meta name="keywords" content="weather, dashboard, homey pro, hafjell, yr.no, snow, glassmorphism">
+    <meta name="author" content="WK Weather Dashboard">
+    
+    <!-- PWA Meta Tags -->
+    <meta name="theme-color" content="#667eea">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="WK Weather">
+    
+    <title>WK Snow Weather Dashboard</title>
+    
+    <!-- Chart.js CDN -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+    
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
 
-body {
-    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-    /* Much lighter purple overlay to show background better */
-    background: 
-        linear-gradient(135deg, rgba(102, 126, 234, 0.15) 0%, rgba(118, 75, 162, 0.15) 100%),
-        url('images/your-background.jpg');
-    background-size: cover;
-    background-position: center center;
-    background-attachment: fixed;
-    background-repeat: no-repeat;
-    min-height: 100vh;
-    padding: 8px;
-    color: #333;
-    margin: 0;
-    overflow: hidden;
-}
+        /* Updated CSS for more visible background and less purple */
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            /* Much lighter purple overlay to show background better */
+            background: 
+                linear-gradient(135deg, rgba(102, 126, 234, 0.15) 0%, rgba(118, 75, 162, 0.15) 100%),
+                url('images/your-background.jpg');
+            background-size: cover;
+            background-position: center center;
+            background-attachment: fixed;
+            background-repeat: no-repeat;
+            min-height: 100vh;
+            padding: 8px;
+            color: #333;
+            margin: 0;
+            overflow: hidden;
+        }
 
-.card {
-    /* More transparent white background */
-    background: rgba(255, 255, 255, 0.3);
-    border-radius: 15px;
-    padding: 12px;
-    box-shadow: 
-        0 6px 25px rgba(0, 0, 0, 0.25),
-        inset 0 1px 0 rgba(255, 255, 255, 0.5);
-    /* Less blur to show more background */
-    backdrop-filter: blur(8px);
-    -webkit-backdrop-filter: blur(8px);
-    border: 1px solid rgba(255, 255, 255, 0.4);
-    transition: all 0.3s ease;
-    overflow: hidden;
-    display: flex;
-    flex-direction: column;
-}
+        .dashboard {
+            max-width: 1200px;
+            margin: 0 auto;
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr 1fr;
+            grid-template-rows: auto 1fr;
+            gap: 8px;
+            height: calc(100vh - 16px);
+        }
 
-.card:hover {
-    transform: translateY(-1px);
-    /* Slightly more opaque on hover for better readability */
-    background: rgba(255, 255, 255, 0.4);
-    box-shadow: 
-        0 8px 30px rgba(0, 0, 0, 0.3),
-        inset 0 1px 0 rgba(255, 255, 255, 0.6);
-}
+        .header {
+            grid-column: 1 / -1;
+            text-align: center;
+            color: white;
+            margin-bottom: 5px;
+            padding: 5px 0;
+            text-shadow: 2px 2px 8px rgba(0,0,0,0.8);
+        }
 
-.sensor-item {
-    text-align: center;
-    padding: 8px;
-    /* More transparent white background */
-    background: rgba(255, 255, 255, 0.25);
-    border-radius: 10px;
-    border: 1px solid rgba(255, 255, 255, 0.4);
-    backdrop-filter: blur(6px);
-    -webkit-backdrop-filter: blur(6px);
-    /* Changed from blue to white accent */
-    border-left: 3px solid rgba(255, 255, 255, 0.6);
-}
+        .header h1 {
+            font-size: 1.5rem;
+            margin-bottom: 2px;
+            text-shadow: 2px 2px 8px rgba(0,0,0,0.8);
+        }
 
-.detail-item {
-    text-align: center;
-    padding: 4px;
-    /* More transparent white background */
-    background: rgba(255, 255, 255, 0.25);
-    border-radius: 6px;
-    border: 1px solid rgba(255, 255, 255, 0.4);
-    backdrop-filter: blur(6px);
-    -webkit-backdrop-filter: blur(6px);
-}
+        .header .timestamp {
+            font-size: 0.7rem;
+            opacity: 0.95;
+            text-shadow: 1px 1px 4px rgba(0,0,0,0.8);
+        }
 
-/* Enhanced text shadows for better readability on backgrounds */
-.card-title {
-    font-size: 0.9rem;
-    font-weight: 600;
-    color: white;
-    text-shadow: 2px 2px 6px rgba(0,0,0,0.9);
-}
+        .card {
+            /* More transparent white background */
+            background: rgba(255, 255, 255, 0.3);
+            border-radius: 15px;
+            padding: 12px;
+            box-shadow: 
+                0 6px 25px rgba(0, 0, 0, 0.25),
+                inset 0 1px 0 rgba(255, 255, 255, 0.5);
+            /* Less blur to show more background */
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+            border: 1px solid rgba(255, 255, 255, 0.4);
+            transition: all 0.3s ease;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
 
-.sensor-value {
-    font-size: 1.1rem;
-    font-weight: bold;
-    color: white;
-    margin-bottom: 2px;
-    text-shadow: 2px 2px 6px rgba(0,0,0,0.9);
-}
+        .card:hover {
+            transform: translateY(-1px);
+            /* Slightly more opaque on hover for better readability */
+            background: rgba(255, 255, 255, 0.4);
+            box-shadow: 
+                0 8px 30px rgba(0, 0, 0, 0.3),
+                inset 0 1px 0 rgba(255, 255, 255, 0.6);
+        }
 
-.weather-temp {
-    font-size: 1.4rem;
-    font-weight: bold;
-    color: white;
-    text-shadow: 2px 2px 6px rgba(0,0,0,0.9);
-}
+        .card-header {
+            display: flex;
+            align-items: center;
+            margin-bottom: 8px;
+            padding-bottom: 6px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+            flex-shrink: 0;
+        }
 
-.detail-value {
-    font-size: 0.75rem;
-    font-weight: bold;
-    color: white;
-    text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
-}
+        .card-icon {
+            font-size: 1.2rem;
+            margin-right: 8px;
+            text-shadow: 0 0 10px rgba(255, 255, 255, 0.5);
+        }
 
-.forecast-temp {
-    font-weight: bold;
-    color: white;
-    font-size: 0.7rem;
-    text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
-}
+        /* Enhanced text shadows for better readability on backgrounds */
+        .card-title {
+            font-size: 0.9rem;
+            font-weight: 600;
+            color: white;
+            text-shadow: 2px 2px 6px rgba(0,0,0,0.9);
+        }
 
-.forecast-time {
-    width: 40px;
-    font-weight: 600;
-    color: white;
-    font-size: 0.7rem;
-    text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
-}
+        .sensor-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+        }
 
-/* Station headers with better visibility */
-.station-section h3 {
-    color: white !important;
-    text-shadow: 2px 2px 6px rgba(0,0,0,0.9) !important;
-    font-size: 0.8rem !important;
-    margin-bottom: 8px !important;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.4) !important;
-    padding-bottom: 4px !important;
-}
+        .sensor-item {
+            text-align: center;
+            padding: 8px;
+            /* More transparent white background */
+            background: rgba(255, 255, 255, 0.25);
+            border-radius: 10px;
+            border: 1px solid rgba(255, 255, 255, 0.4);
+            backdrop-filter: blur(6px);
+            -webkit-backdrop-filter: blur(6px);
+            /* Changed from blue to white accent */
+            border-left: 3px solid rgba(255, 255, 255, 0.6);
+        }
 
-/* Updated refresh button to be less purple */
-.refresh-btn {
-    position: fixed;
-    bottom: 10px;
-    right: 10px;
-    background: rgba(255, 255, 255, 0.3);
-    color: white;
-    border: none;
-    border-radius: 50px;
-    padding: 8px 12px;
-    font-size: 0.7rem;
-    cursor: pointer;
-    box-shadow: 
-        0 4px 20px rgba(0, 0, 0, 0.3),
-        inset 0 1px 0 rgba(255, 255, 255, 0.4);
-    backdrop-filter: blur(10px);
-    -webkit-backdrop-filter: blur(10px);
-    border: 1px solid rgba(255, 255, 255, 0.4);
-    transition: all 0.3s ease;
-    text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
-}
+        .sensor-value {
+            font-size: 1.1rem;
+            font-weight: bold;
+            color: white;
+            margin-bottom: 2px;
+            text-shadow: 2px 2px 6px rgba(0,0,0,0.9);
+        }
 
-.refresh-btn:hover {
-    background: rgba(255, 255, 255, 0.4);
-    transform: scale(1.05);
-}
+        .sensor-label {
+            font-size: 0.65rem;
+            color: rgba(255, 255, 255, 0.8);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            text-shadow: 1px 1px 2px rgba(0,0,0,0.6);
+        }
 
-/* Make sensor and detail items more transparent on hover */
-.sensor-item:hover,
-.detail-item:hover {
-    background: rgba(255, 255, 255, 0.35);
-    transform: translateY(-1px);
-    transition: all 0.3s ease;
-}
+        .weather-main {
+            display: flex;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+
+        .weather-icon {
+            font-size: 2rem;
+            margin-right: 10px;
+            text-shadow: 0 0 15px rgba(255, 255, 255, 0.7);
+        }
+
+        .weather-temp {
+            font-size: 1.4rem;
+            font-weight: bold;
+            color: white;
+            text-shadow: 2px 2px 6px rgba(0,0,0,0.9);
+        }
+
+        .weather-desc {
+            font-size: 0.7rem;
+            color: rgba(255, 255, 255, 0.8);
+            text-transform: capitalize;
+            text-shadow: 1px 1px 2px rgba(0,0,0,0.6);
+        }
+
+        .weather-details {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 6px;
+            margin-top: 8px;
+        }
+
+        .detail-item {
+            text-align: center;
+            padding: 4px;
+            /* More transparent white background */
+            background: rgba(255, 255, 255, 0.25);
+            border-radius: 6px;
+            border: 1px solid rgba(255, 255, 255, 0.4);
+            backdrop-filter: blur(6px);
+            -webkit-backdrop-filter: blur(6px);
+        }
+
+        .detail-value {
+            font-size: 0.75rem;
+            font-weight: bold;
+            color: white;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
+        }
+
+        .detail-label {
+            font-size: 0.55rem;
+            color: rgba(255, 255, 255, 0.7);
+            margin-top: 1px;
+            text-shadow: 1px 1px 2px rgba(0,0,0,0.6);
+        }
+
+        .forecast-item {
+            display: flex;
+            align-items: center;
+            padding: 4px 0;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .forecast-item:last-child {
+            border-bottom: none;
+        }
+
+        .forecast-time {
+            width: 40px;
+            font-weight: 600;
+            color: white;
+            font-size: 0.7rem;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
+        }
+
+        .forecast-icon {
+            font-size: 0.9rem;
+            margin: 0 6px;
+            text-shadow: 0 0 10px rgba(255, 255, 255, 0.5);
+        }
+
+        .forecast-temp {
+            font-weight: bold;
+            color: white;
+            font-size: 0.7rem;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
+        }
+
+        .forecast-desc {
+            margin-left: auto;
+            color: rgba(255, 255, 255, 0.8);
+            font-size: 0.6rem;
+            text-shadow: 1px 1px 2px rgba(0,0,0,0.6);
+        }
+
+        .status-indicator {
+            display: inline-block;
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            margin-left: 5px;
+            box-shadow: 0 0 8px rgba(255, 255, 255, 0.5);
+        }
+
+        .status-online {
+            background-color: #27ae60;
+            box-shadow: 0 0 10px rgba(39, 174, 96, 0.8);
+        }
+
+        .status-offline {
+            background-color: #e74c3c;
+            box-shadow: 0 0 10px rgba(231, 76, 60, 0.8);
+        }
+
+        .station-section {
+            padding: 6px 0;
+        }
+
+        /* Station headers with better visibility */
+        .station-section h3 {
+            color: white !important;
+            text-shadow: 2px 2px 6px rgba(0,0,0,0.9) !important;
+            font-size: 0.8rem !important;
+            margin-bottom: 8px !important;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.4) !important;
+            padding-bottom: 4px !important;
+        }
+
+        .hafjell-stations {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            flex: 1;
+        }
+
+        .temp-chart-container {
+            flex: 1;
+            position: relative;
+            min-height: 0;
+        }
+
+        .temp-chart {
+            width: 100% !important;
+            height: 100% !important;
+        }
+
+        /* Updated refresh button to be less purple */
+        .refresh-btn {
+            position: fixed;
+            bottom: 10px;
+            right: 10px;
+            background: rgba(255, 255, 255, 0.3);
+            color: white;
+            border: none;
+            border-radius: 50px;
+            padding: 8px 12px;
+            font-size: 0.7rem;
+            cursor: pointer;
+            box-shadow: 
+                0 4px 20px rgba(0, 0, 0, 0.3),
+                inset 0 1px 0 rgba(255, 255, 255, 0.4);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.4);
+            transition: all 0.3s ease;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
+        }
+
+        .refresh-btn:hover {
+            background: rgba(255, 255, 255, 0.4);
+            transform: scale(1.05);
+        }
+
+        .loading {
+            opacity: 0.6;
+            pointer-events: none;
+        }
+
+        /* Make sensor and detail items more transparent on hover */
+        .sensor-item:hover,
+        .detail-item:hover {
+            background: rgba(255, 255, 255, 0.35);
+            transform: translateY(-1px);
+            transition: all 0.3s ease;
+        }
+
+        /* iPad landscape optimizations */
+        @media (max-width: 1024px) and (orientation: landscape) {
+            .dashboard {
+                grid-template-columns: repeat(4, 1fr);
+                gap: 6px;
+                height: calc(100vh - 12px);
+            }
+            
+            .card {
+                padding: 10px;
+            }
+            
+            .header h1 {
+                font-size: 1.3rem;
+            }
+        }
+
+        @media (max-width: 768px) {
+            .dashboard {
+                grid-template-columns: 1fr 1fr;
+                grid-template-rows: auto 1fr 1fr;
+                gap: 8px;
+                height: auto;
+                overflow: visible;
+            }
+            
+            body {
+                overflow: visible;
+            }
+        }
+
+        /* Animation effects */
+        @keyframes aurora-glow {
+            0%, 100% { opacity: 0.8; }
+            50% { opacity: 1; }
+        }
+
+        .weather-icon {
+            animation: aurora-glow 3s ease-in-out infinite;
+        }
+
+        .status-online {
+            animation: aurora-glow 2s ease-in-out infinite;
+        }
+    </style>
+</head>
+<body>
+    <div class="dashboard">
+        <div class="header">
+            <h1>❄️ WK Snow Weather Dashboard</h1>
+            <div class="timestamp" id="timestamp"></div>
+        </div>
+
+        <!-- Outdoor Sensors Card -->
+        <div class="card" id="sensors-card">
+            <div class="card-header">
+                <div class="card-icon">🌡️</div>
+                <div class="card-title">
+                    Outdoor Sensors
+                    <span class="status-indicator status-online" id="sensor-status"></span>
+                </div>
+            </div>
+            <div class="sensor-grid">
+                <div class="sensor-item">
+                    <div class="sensor-value" id="outdoor-temp">--°C</div>
+                    <div class="sensor-label">Temperature</div>
+                </div>
+                <div class="sensor-item">
+                    <div class="sensor-value" id="outdoor-humidity">--%</div>
+                    <div class="sensor-label">Humidity</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Temperature Graph Card -->
+        <div class="card" id="temp-graph-card">
+            <div class="card-header">
+                <div class="card-icon">📈</div>
+                <div class="card-title">
+                    6-Hour Temperature Trend
+                    <span class="status-indicator status-online" id="graph-status"></span>
+                </div>
+            </div>
+            <div class="temp-chart-container">
+                <canvas id="tempChart" class="temp-chart"></canvas>
+            </div>
+        </div>
+
+        <!-- Hafjell Weather Stations Card -->
+        <div class="card" id="hafjell-card">
+            <div class="card-header">
+                <div class="card-icon">🎿</div>
+                <div class="card-title">
+                    Hafjell Stations
+                    <span class="status-indicator status-online" id="hafjell-status"></span>
+                </div>
+            </div>
+            
+            <div class="hafjell-stations">
+                <!-- Top Station -->
+                <div class="station-section">
+                    <h3>🏔️ Top</h3>
+                    <div class="weather-main">
+                        <div class="weather-icon" id="top-icon">☀️</div>
+                        <div>
+                            <div class="weather-temp" id="top-temp">--°C</div>
+                            <div class="weather-desc" id="top-desc">Loading...</div>
+                        </div>
+                    </div>
+                    <div class="weather-details" style="grid-template-columns: 1fr; gap: 4px;">
+                        <div class="detail-item">
+                            <div class="detail-value" id="top-wind">-- m/s</div>
+                            <div class="detail-label">Wind</div>
+                        </div>
+                        <div class="detail-item">
+                            <div class="detail-value" id="top-snow">-- cm</div>
+                            <div class="detail-label">Snow</div>
+                        </div>
+                        <div class="detail-item">
+                            <div class="detail-value" id="top-snow-day">-- cm</div>
+                            <div class="detail-label">Last Day</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Bottom Station -->
+                <div class="station-section">
+                    <h3>🏞️ Bottom</h3>
+                    <div class="weather-main">
+                        <div class="weather-icon" id="bottom-icon">☀️</div>
+                        <div>
+                            <div class="weather-temp" id="bottom-temp">--°C</div>
+                            <div class="weather-desc" id="bottom-desc">Loading...</div>
+                        </div>
+                    </div>
+                    <div class="weather-details" style="grid-template-columns: 1fr; gap: 4px;">
+                        <div class="detail-item">
+                            <div class="detail-value" id="bottom-wind">-- m/s</div>
+                            <div class="detail-label">Wind</div>
+                        </div>
+                        <div class="detail-item">
+                            <div class="detail-value" id="bottom-snow">-- cm</div>
+                            <div class="detail-label">Snow</div>
+                        </div>
+                        <div class="detail-item">
+                            <div class="detail-value" id="bottom-snow-day">-- cm</div>
+                            <div class="detail-label">Last Day</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- YR.no Forecast Card -->
+        <div class="card" id="forecast-card">
+            <div class="card-header">
+                <div class="card-icon">📅</div>
+                <div class="card-title">
+                    Mosetertoppen Today
+                    <span class="status-indicator status-online" id="forecast-status"></span>
+                </div>
+            </div>
+            <div id="forecast-content">
+                <div class="forecast-item">
+                    <div class="forecast-time">Loading...</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <button class="refresh-btn" onclick="refreshAllData()">🔄 Refresh</button>
+
+    <script>
+        // Configuration - Update these with your actual endpoints and location
+        const CONFIG = {
+            // Homey Pro configuration
+            homey: {
+                // Option 1: Local API (faster, requires local network)
+                localUrl: 'http://YOUR_HOMEY_IP', // e.g., 'http://192.168.1.100'
+                bearerToken: 'YOUR_HOMEY_BEARER_TOKEN',
+                
+                // Option 2: Cloud API (works from anywhere)
+                cloudUrl: 'https://api.athom.com',
+                accessToken: 'YOUR_HOMEY_ACCESS_TOKEN',
+                
+                // Your device IDs (find these in Homey Developer Tools)
+                devices: {
+                    outdoorTempSensor: 'YOUR_OUTDOOR_SENSOR_DEVICE_ID',
+                    outdoorHumiditySensor: 'YOUR_OUTDOOR_HUMIDITY_DEVICE_ID' // Can be same as temp if combined sensor
+                }
+            },
+            
+            // Update with your location coordinates
+            location: {
+                lat: 61.236, // Mosetertoppen Skistadion, Hafjell
+                lon: 10.460
+            }
+        };
+
+        // Temperature history storage
+        let temperatureHistory = {
+            labels: [],
+            outdoor: [],
+            hafjellTop: [],
+            hafjellBottom: []
+        };
+
+        // Chart instance
+        let tempChart = null;
+
+        // Weather icon mapping
+        const weatherIcons = {
+            'clear': '☀️',
+            'partly-cloudy': '⛅',
+            'cloudy': '☁️',
+            'rain': '🌧️',
+            'snow': '❄️',
+            'fog': '🌫️',
+            'default': '🌤️'
+        };
+
+        // Initialize temperature chart
+        function initTempChart() {
+            const ctx = document.getElementById('tempChart').getContext('2d');
+            
+            // Initialize with last 6 hours of mock data
+            const now = new Date();
+            for (let i = 5; i >= 0; i--) {
+                const time = new Date(now.getTime() - i * 60 * 60 * 1000);
+                temperatureHistory.labels.push(time.toLocaleTimeString('en-NO', {hour: '2-digit', minute: '2-digit'}));
+                temperatureHistory.outdoor.push(8 + Math.random() * 4);
+                temperatureHistory.hafjellTop.push(11 + Math.random() * 3);
+                temperatureHistory.hafjellBottom.push(18 + Math.random() * 4);
+            }
+            
+            tempChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: temperatureHistory.labels,
+                    datasets: [{
+                        label: 'Outdoor Sensor',
+                        data: temperatureHistory.outdoor,
+                        borderColor: 'rgba(52, 152, 219, 0.8)',
+                        backgroundColor: 'rgba(52, 152, 219, 0.1)',
+                        borderWidth: 2,
+                        fill: false,
+                        tension: 0.4
+                    }, {
+                        label: 'Hafjell Top',
+                        data: temperatureHistory.hafjellTop,
+                        borderColor: 'rgba(231, 76, 60, 0.8)',
+                        backgroundColor: 'rgba(231, 76, 60, 0.1)',
+                        borderWidth: 2,
+                        fill: false,
+                        tension: 0.4
+                    }, {
+                        label: 'Hafjell Bottom',
+                        data: temperatureHistory.hafjellBottom,
+                        borderColor: 'rgba(46, 204, 113, 0.8)',
+                        backgroundColor: 'rgba(46, 204, 113, 0.1)',
+                        borderWidth: 2,
+                        fill: false,
+                        tension: 0.4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            display: true,
+                            position: 'top',
+                            labels: {
+                                color: 'white',
+                                font: {
+                                    size: 10
+                                },
+                                usePointStyle: true,
+                                pointStyle: 'circle'
+                            }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            ticks: {
+                                color: 'rgba(255, 255, 255, 0.8)',
+                                font: {
+                                    size: 10
+                                }
+                            },
+                            grid: {
+                                color: 'rgba(255, 255, 255, 0.2)'
+                            }
+                        },
+                        y: {
+                            ticks: {
+                                color: 'rgba(255, 255, 255, 0.8)',
+                                font: {
+                                    size: 10
+                                },
+                                callback: function(value) {
+                                    return value + '°C';
+                                }
+                            },
+                            grid: {
+                                color: 'rgba(255, 255, 255, 0.2)'
+                            }
+                        }
+                    },
+                    elements: {
+                        point: {
+                            radius: 2,
+                            hoverRadius: 4
+                        }
+                    }
+                }
+            });
+        }
+
+        // Update temperature chart with new data
+        function updateTempChart(outdoorTemp, hafjellTopTemp, hafjellBottomTemp) {
+            const now = new Date();
+            const timeLabel = now.toLocaleTimeString('en-NO', {hour: '2-digit', minute: '2-digit'});
+            
+            // Add new data point
+            temperatureHistory.labels.push(timeLabel);
+            temperatureHistory.outdoor.push(parseFloat(outdoorTemp) || 0);
+            temperatureHistory.hafjellTop.push(parseFloat(hafjellTopTemp) || 0);
+            temperatureHistory.hafjellBottom.push(parseFloat(hafjellBottomTemp) || 0);
+            
+            // Keep only last 6 hours (6 data points)
+            if (temperatureHistory.labels.length > 6) {
+                temperatureHistory.labels.shift();
+                temperatureHistory.outdoor.shift();
+                temperatureHistory.hafjellTop.shift();
+                temperatureHistory.hafjellBottom.shift();
+            }
+            
+            // Update chart
+            tempChart.data.labels = temperatureHistory.labels;
+            tempChart.data.datasets[0].data = temperatureHistory.outdoor;
+            tempChart.data.datasets[1].data = temperatureHistory.hafjellTop;
+            tempChart.data.datasets[2].data = temperatureHistory.hafjellBottom;
+            tempChart.update('none');
+        }
+
+        // Update timestamp with refresh info
+        function updateTimestamp() {
+            const now = new Date();
+            const nextRefresh = new Date(now.getTime() + (5 * 60 * 1000)); // 5 minutes from now
+            document.getElementById('timestamp').innerHTML = 
+                `Last updated: ${now.toLocaleString('en-NO')}<br>
+                <small style="opacity: 0.7;">Auto-refresh: ${nextRefresh.toLocaleTimeString('en-NO', {hour: '2-digit', minute: '2-digit'})} (all stations)</small>`;
+        }
+
+        // Update personal sensors from Homey Pro (outdoor only)
+        async function updatePersonalSensors() {
+            try {
+                // Get data from Homey Pro outdoor sensor only
+                const outdoorData = await getHomeyDeviceData(CONFIG.homey.devices.outdoorTempSensor);
+                
+                // Update outdoor readings only
+                const tempValue = outdoorData.temperature ? outdoorData.temperature.toFixed(1) : '--';
+                const humidityValue = outdoorData.humidity ? Math.round(outdoorData.humidity) : '--';
+                
+                document.getElementById('outdoor-temp').textContent = tempValue + '°C';
+                document.getElementById('outdoor-humidity').textContent = humidityValue + '%';
+                
+                document.getElementById('sensor-status').className = 'status-indicator status-online';
+                
+                return tempValue;
+            } catch (error) {
+                console.error('Error updating Homey outdoor sensors:', error);
+                document.getElementById('sensor-status').className = 'status-indicator status-offline';
+                
+                // Fallback to simulated data if Homey is not accessible
+                return await updatePersonalSensorsFallback();
+            }
+        }
+
+        // Get device data from Homey Pro
+        async function getHomeyDeviceData(deviceId) {
+            if (!deviceId || deviceId.includes('YOUR_')) {
+                throw new Error('Device ID not configured');
+            }
+
+            try {
+                // Try local API first (faster)
+                if (CONFIG.homey.localUrl && CONFIG.homey.bearerToken && 
+                    !CONFIG.homey.localUrl.includes('YOUR_') && !CONFIG.homey.bearerToken.includes('YOUR_')) {
+                    return await getHomeyLocalDeviceData(deviceId);
+                }
+                
+                // Fallback to cloud API
+                if (CONFIG.homey.accessToken && !CONFIG.homey.accessToken.includes('YOUR_')) {
+                    return await getHomeyCloudDeviceData(deviceId);
+                }
+                
+                throw new Error('No valid Homey configuration found');
+            } catch (error) {
+                console.error(`Error getting Homey device data for ${deviceId}:`, error);
+                throw error;
+            }
+        }
+
+        // Homey Local API (requires bearer token)
+        async function getHomeyLocalDeviceData(deviceId) {
+            const response = await fetch(`${CONFIG.homey.localUrl}/api/devices/${deviceId}`, {
+                headers: {
+                    'Authorization': `Bearer ${CONFIG.homey.bearerToken}`,
+                    'Content-Type': 'application/json'
+                }
+            });
+            
+            if (!response.ok) {
+                throw new Error(`Homey local API error: ${response.status}`);
+            }
+            
+            const device = await response.json();
+            return extractSensorData(device);
+        }
+
+        // Homey Cloud API (requires access token from Homey app)
+        async function getHomeyCloudDeviceData(deviceId) {
+            const response = await fetch(`${CONFIG.homey.cloudUrl}/device/${deviceId}`, {
+                headers: {
+                    'Authorization': `Bearer ${CONFIG.homey.accessToken}`,
+                    'Content-Type': 'application/json'
+                }
+            });
+            
+            if (!response.ok) {
+                throw new Error(`Homey cloud API error: ${response.status}`);
+            }
+            
+            const device = await response.json();
+            return extractSensorData(device);
+        }
+
+        // Extract temperature and humidity from Homey device capabilities
+        function extractSensorData(device) {
+            const data = {};
+            
+            if (device.capabilitiesObj) {
+                // Temperature capability
+                if (device.capabilitiesObj['measure_temperature']) {
+                    data.temperature = device.capabilitiesObj['measure_temperature'].value;
+                }
+                
+                // Humidity capability
+                if (device.capabilitiesObj['measure_humidity']) {
+                    data.humidity = device.capabilitiesObj['measure_humidity'].value;
+                }
+                
+                // Alternative capability names (some devices use different names)
+                if (device.capabilitiesObj['temperature']) {
+                    data.temperature = device.capabilitiesObj['temperature'].value;
+                }
+                
+                if (device.capabilitiesObj['humidity']) {
+                    data.humidity = device.capabilitiesObj['humidity'].value;
+                }
+            }
+            
+            return data;
+        }
+
+        // Fallback sensor data (if Homey is not accessible) - outdoor only
+        async function updatePersonalSensorsFallback() {
+            const outdoorData = await simulateSensorData('outdoor');
+
+            document.getElementById('outdoor-temp').textContent = `${outdoorData.temperature}°C`;
+            document.getElementById('outdoor-humidity').textContent = `${outdoorData.humidity}%`;
+            
+            return outdoorData.temperature;
+        }
+
+        // Simulate sensor data (replace with actual sensor API calls)
+        async function simulateSensorData(type) {
+            // This simulates your actual sensor data
+            // Replace this function with actual API calls to your sensors
+            return new Promise(resolve => {
+                setTimeout(() => {
+                    const baseTemp = type === 'indoor' ? 22 : 10;
+                    const baseHumidity = type === 'indoor' ? 45 : 65;
+                    
+                    resolve({
+                        temperature: (baseTemp + (Math.random() - 0.5) * 4).toFixed(1),
+                        humidity: Math.round(baseHumidity + (Math.random() - 0.5) * 20)
+                    });
+                }, 500);
+            });
+        }
+
+        // Update Hafjell weather stations with enhanced logging
+        async function updateHafjellWeather() {
+            console.log('Fetching Hafjell weather station data...');
+            
+            try {
+                // Note: Direct fetching from Hafjell may be blocked by CORS
+                // In a real implementation, you'd need a proxy server or server-side solution
+                const hafjellData = await fetchHafjellData();
+                
+                if (hafjellData) {
+                    console.log('Hafjell data received:', hafjellData);
+                    
+                    // Update top station
+                    document.getElementById('top-temp').textContent = `${hafjellData.top.temperature}°C`;
+                    document.getElementById('top-desc').textContent = hafjellData.top.condition;
+                    document.getElementById('top-wind').textContent = `${hafjellData.top.wind} m/s`;
+                    document.getElementById('top-snow').textContent = `${hafjellData.top.snow} cm`;
+                    document.getElementById('top-snow-day').textContent = `${hafjellData.top.snowLastDay} cm`;
+                    document.getElementById('top-icon').textContent = getWeatherIconFromCondition(hafjellData.top.condition);
+                    
+                    // Update bottom station
+                    document.getElementById('bottom-temp').textContent = `${hafjellData.bottom.temperature}°C`;
+                    document.getElementById('bottom-desc').textContent = hafjellData.bottom.condition;
+                    document.getElementById('bottom-wind').textContent = `${hafjellData.bottom.wind} m/s`;
+                    document.getElementById('bottom-snow').textContent = `${hafjellData.bottom.snow} cm`;
+                    document.getElementById('bottom-snow-day').textContent = `${hafjellData.bottom.snowLastDay} cm`;
+                    document.getElementById('bottom-icon').textContent = getWeatherIconFromCondition(hafjellData.bottom.condition);
+                    
+                    document.getElementById('hafjell-status').className = 'status-indicator status-online';
+                    console.log('Hafjell weather stations updated successfully');
+                    
+                    return {
+                        top: hafjellData.top.temperature,
+                        bottom: hafjellData.bottom.temperature
+                    };
+                } else {
+                    throw new Error('No data received from Hafjell');
+                }
+            } catch (error) {
+                console.error('Error updating Hafjell weather:', error);
+                document.getElementById('hafjell-status').className = 'status-indicator status-offline';
+                
+                // Use mock data if scraping fails
+                console.log('Using fallback Hafjell data due to error');
+                return updateHafjellWeatherMock();
+            }
+        }
+
+        // Fetch Hafjell data (server-side implementation needed for production)
+        async function fetchHafjellData() {
+            try {
+                // Try to use Vercel API function first (if deployed)
+                if (window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
+                    const response = await fetch('/api/hafjell');
+                    if (response.ok) {
+                        return await response.json();
+                    }
+                }
+            } catch (error) {
+                console.log('API endpoint not available, using mock data');
+            }
+            
+            console.log('Using simulated Hafjell data (replace with actual server call in production)');
+            
+            // Simulate network delay
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            
+            // Simulate the data structure based on the current Hafjell report
+            return {
+                top: {
+                    temperature: (11 + (Math.random() - 0.5) * 3).toFixed(1),
+                    condition: 'Mostly sunny',
+                    wind: (5.6 + (Math.random() - 0.5) * 2).toFixed(1),
+                    snow: '65',
+                    snowLastDay: Math.floor(Math.random() * 3).toString()
+                },
+                bottom: {
+                    temperature: (20 + (Math.random() - 0.5) * 4).toFixed(1),
+                    condition: 'Mostly sunny', 
+                    wind: (2.0 + (Math.random() - 0.5) * 1.5).toFixed(1),
+                    snow: '65',
+                    snowLastDay: Math.floor(Math.random() * 3).toString()
+                },
+                lastUpdated: new Date().toISOString()
+            };
+        }
+
+        // Mock Hafjell data (fallback)
+        function updateHafjellWeatherMock() {
+            // Top station
+            const topTemp = (11 + (Math.random() - 0.5) * 3).toFixed(1);
+            const bottomTemp = (20 + (Math.random() - 0.5) * 4).toFixed(1);
+            
+            document.getElementById('top-temp').textContent = topTemp + '°C';
+            document.getElementById('top-desc').textContent = 'Mostly sunny';
+            document.getElementById('top-wind').textContent = (5.6 + (Math.random() - 0.5) * 2).toFixed(1) + ' m/s';
+            document.getElementById('top-snow').textContent = '65 cm';
+            document.getElementById('top-snow-day').textContent = Math.floor(Math.random() * 3) + ' cm';
+            document.getElementById('top-icon').textContent = '☀️';
+            
+            // Bottom station
+            document.getElementById('bottom-temp').textContent = bottomTemp + '°C';
+            document.getElementById('bottom-desc').textContent = 'Mostly sunny';
+            document.getElementById('bottom-wind').textContent = (2.0 + (Math.random() - 0.5) * 1.5).toFixed(1) + ' m/s';
+            document.getElementById('bottom-snow').textContent = '65 cm';
+            document.getElementById('bottom-snow-day').textContent = Math.floor(Math.random() * 3) + ' cm';
+            document.getElementById('bottom-icon').textContent = '☀️';
+            
+            return { top: topTemp, bottom: bottomTemp };
+        }
+
+        function getWeatherIconFromCondition(condition) {
+            const conditionLower = condition.toLowerCase();
+            if (conditionLower.includes('sunny') || conditionLower.includes('clear')) return '☀️';
+            if (conditionLower.includes('partly') || conditionLower.includes('mostly')) return '⛅';
+            if (conditionLower.includes('cloudy')) return '☁️';
+            if (conditionLower.includes('rain')) return '🌧️';
+            if (conditionLower.includes('snow')) return '❄️';
+            if (conditionLower.includes('fog')) return '🌫️';
+            return '🌤️';
+        }
+
+        // Update YR.no forecast for Mosetertoppen
+        async function updateForecast() {
+            try {
+                const response = await fetch(
+                    `https://api.met.no/weatherapi/locationforecast/2.0/compact?lat=${CONFIG.location.lat}&lon=${CONFIG.location.lon}`,
+                    {
+                        headers: {
+                            'User-Agent': 'HomeWeatherDashboard/1.0'
+                        }
+                    }
+                );
+                
+                if (!response.ok) {
+                    throw new Error('YR.no API error');
+                }
+                
+                const data = await response.json();
+                displayForecast(data);
+                
+                document.getElementById('forecast-status').className = 'status-indicator status-online';
+            } catch (error) {
+                console.error('Error updating forecast:', error);
+                document.getElementById('forecast-status').className = 'status-indicator status-offline';
+                
+                // Use mock forecast data
+                displayMockForecast();
+            }
+        }
+
+        // Display forecast data
+        function displayForecast(data) {
+            const forecastContent = document.getElementById('forecast-content');
+            forecastContent.innerHTML = '';
+            
+            const today = new Date().toDateString();
+            const todayForecasts = data.properties.timeseries.filter(item => {
+                const itemDate = new Date(item.time).toDateString();
+                return itemDate === today;
+            }).slice(0, 5); // Show next 5 time periods to fit on screen
+            
+            todayForecasts.forEach(item => {
+                const time = new Date(item.time);
+                const temp = Math.round(item.data.instant.details.air_temperature);
+                const symbol = item.data.next_1_hours?.summary?.symbol_code || 'clearsky_day';
+                
+                const forecastItem = document.createElement('div');
+                forecastItem.className = 'forecast-item';
+                forecastItem.innerHTML = `
+                    <div class="forecast-time">${time.toLocaleTimeString('en-NO', {hour: '2-digit', minute: '2-digit'})}</div>
+                    <div class="forecast-icon">${getWeatherIcon(symbol)}</div>
+                    <div class="forecast-temp">${temp}°C</div>
+                    <div class="forecast-desc">${getWeatherDescription(symbol)}</div>
+                `;
+                forecastContent.appendChild(forecastItem);
+            });
+        }
+
+        // Mock forecast data
+        function displayMockForecast() {
+            const forecastContent = document.getElementById('forecast-content');
+            forecastContent.innerHTML = '';
+            
+            const now = new Date();
+            const mockData = [
+                { time: now.getHours() + ':00', temp: 12 + Math.random() * 3, icon: '⛅', desc: 'Partly cloudy' },
+                { time: (now.getHours() + 3) % 24 + ':00', temp: 14 + Math.random() * 2, icon: '☁️', desc: 'Cloudy' },
+                { time: (now.getHours() + 6) % 24 + ':00', temp: 11 + Math.random() * 3, icon: '🌧️', desc: 'Light rain' },
+                { time: (now.getHours() + 9) % 24 + ':00', temp: 9 + Math.random() * 2, icon: '☁️', desc: 'Overcast' }
+            ];
+            
+            mockData.forEach(item => {
+                const forecastItem = document.createElement('div');
+                forecastItem.className = 'forecast-item';
+                forecastItem.innerHTML = `
+                    <div class="forecast-time">${item.time}</div>
+                    <div class="forecast-icon">${item.icon}</div>
+                    <div class="forecast-temp">${Math.round(item.temp)}°C</div>
+                    <div class="forecast-desc">${item.desc}</div>
+                `;
+                forecastContent.appendChild(forecastItem);
+            });
+        }
+
+        // Helper functions
+        function getWeatherIcon(symbolCode) {
+            if (symbolCode.includes('clear')) return '☀️';
+            if (symbolCode.includes('partlycloudy')) return '⛅';
+            if (symbolCode.includes('cloudy')) return '☁️';
+            if (symbolCode.includes('rain')) return '🌧️';
+            if (symbolCode.includes('snow')) return '❄️';
+            if (symbolCode.includes('fog')) return '🌫️';
+            return '🌤️';
+        }
+
+        function getWeatherDescription(symbolCode) {
+            const descriptions = {
+                'clearsky': 'Clear sky',
+                'partlycloudy': 'Partly cloudy',
+                'cloudy': 'Cloudy',
+                'rain': 'Rain',
+                'snow': 'Snow',
+                'fog': 'Fog'
+            };
+            
+            for (const key in descriptions) {
+                if (symbolCode.includes(key)) {
+                    return descriptions[key];
+                }
+            }
+            return 'Unknown';
+        }
+
+        // Refresh all data including Hafjell stations
+        async function refreshAllData() {
+            const refreshBtn = document.querySelector('.refresh-btn');
+            refreshBtn.disabled = true;
+            refreshBtn.textContent = '🔄 Refreshing...';
+            
+            // Add loading state to all cards
+            document.getElementById('sensors-card').classList.add('loading');
+            document.getElementById('hafjell-card').classList.add('loading');
+            document.getElementById('forecast-card').classList.add('loading');
+            document.getElementById('temp-graph-card').classList.add('loading');
+            
+            try {
+                // Refresh all data sources simultaneously
+                const [outdoorTemp, hafjellTemps] = await Promise.all([
+                    updatePersonalSensors(),
+                    updateHafjellWeather(),
+                    updateForecast()
+                ]);
+                
+                // Update temperature chart
+                if (outdoorTemp && hafjellTemps) {
+                    updateTempChart(outdoorTemp, hafjellTemps.top, hafjellTemps.bottom);
+                    document.getElementById('graph-status').className = 'status-indicator status-online';
+                }
+                
+                updateTimestamp();
+                
+                console.log('All data refreshed successfully at', new Date().toLocaleTimeString('en-NO'));
+            } catch (error) {
+                console.error('Error refreshing data:', error);
+                document.getElementById('graph-status').className = 'status-indicator status-offline';
+            } finally {
+                // Remove loading state from all cards
+                document.getElementById('sensors-card').classList.remove('loading');
+                document.getElementById('hafjell-card').classList.remove('loading');
+                document.getElementById('forecast-card').classList.remove('loading');
+                document.getElementById('temp-graph-card').classList.remove('loading');
+                
+                refreshBtn.disabled = false;
+                refreshBtn.textContent = '🔄 Refresh';
+            }
+        }
+
+        // Initialize dashboard with auto-refresh
+        async function initDashboard() {
+            updateTimestamp();
+            initTempChart();
+            await refreshAllData();
+            
+            // Auto-refresh every 5 minutes (300,000 milliseconds)
+            const refreshInterval = setInterval(async () => {
+                console.log('Auto-refreshing all data including Hafjell stations...');
+                await refreshAllData();
+            }, 5 * 60 * 1000);
+            
+            // Update timestamp every minute
+            setInterval(updateTimestamp, 60 * 1000);
+            
+            console.log('Dashboard initialized with 5-minute auto-refresh for all data sources');
+        }
+
+        // Start the dashboard when page loads
+        document.addEventListener('DOMContentLoaded', initDashboard);
+    </script>
+</body>
+</html>
