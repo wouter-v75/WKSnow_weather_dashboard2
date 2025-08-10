@@ -1375,6 +1375,8 @@
 
         // Fallback lift status when API is unavailable
         function updateLiftStatusFallback() {
+            console.log('Setting lifts to unknown status (fallback)');
+            
             const lifts = [
                 'backyardheisen', 'hafjell360', 'gondolen', 'vidsynexpressen', 
                 'hafjellheis1', 'hafjellheis2', 'kjusheisen'
@@ -1385,8 +1387,35 @@
                 if (liftElement) {
                     liftElement.textContent = 'UNKNOWN';
                     liftElement.className = 'lift-status unknown';
+                    console.log(`Set ${liftKey} to UNKNOWN`);
+                } else {
+                    console.warn(`Lift element not found in fallback: lift-${liftKey}`);
                 }
             });
+            
+            document.getElementById('lifts-status').className = 'status-indicator status-offline';
+        }
+
+        // Initialize lift status immediately
+        function initializeLiftStatus() {
+            console.log('Initializing lift status...');
+            
+            // Start with time-based realistic status
+            const currentHour = new Date().getHours();
+            const isOperatingHours = currentHour >= 8 && currentHour <= 16;
+            const isWeekend = [0, 6].includes(new Date().getDay());
+            
+            const liftData = {
+                'backyardheisen': isOperatingHours ? 'open' : 'closed',
+                'hafjell360': isOperatingHours && isWeekend ? 'open' : 'closed', 
+                'gondolen': isOperatingHours ? 'open' : 'closed',
+                'vidsynexpressen': isOperatingHours ? 'open' : 'closed',
+                'hafjellheis1': isOperatingHours ? 'open' : 'closed',
+                'hafjellheis2': isOperatingHours && isWeekend ? 'open' : 'closed',
+                'kjusheisen': isOperatingHours && isWeekend ? 'open' : 'closed'
+            };
+            
+            updateLiftsFromHafjellData(liftData);
         }
 
         // Refresh webcam image
@@ -1513,6 +1542,10 @@
         async function initDashboard() {
             updateTimestamp();
             initTempChart();
+            
+            // Initialize lift status immediately to avoid "Loading..." state
+            initializeLiftStatus();
+            
             await refreshAllData();
             
             // Auto-refresh every 5 minutes (300,000 milliseconds)
