@@ -274,6 +274,7 @@
             font-size: 0.65rem;
             text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
             width: 30px;
+            margin-right: 8px;
         }
 
         .forecast-wind {
@@ -294,7 +295,7 @@
 
         .wind-speed {
             font-size: 0.6rem;
-            min-width: 25px;
+            min-width: 35px;
         }
 
         .forecast-desc {
@@ -1123,7 +1124,7 @@
                     <div class="forecast-temp">${temp}°C</div>
                     <div class="forecast-wind">
                         <span class="wind-arrow">${windArrow}</span>
-                        <span class="wind-speed">${Math.round(windSpeed)}</span>
+                        <span class="wind-speed">${Math.round(windSpeed)} m/s</span>
                     </div>
                     <div class="forecast-desc">${getWeatherDescription(symbol)}</div>
                 `;
@@ -1184,7 +1185,7 @@
                     <div class="forecast-temp">${temp}°C</div>
                     <div class="forecast-wind">
                         <span class="wind-arrow">${windArrow}</span>
-                        <span class="wind-speed">${Math.round(windSpeed)}</span>
+                        <span class="wind-speed">${Math.round(windSpeed)} m/s</span>
                     </div>
                     <div class="forecast-desc">${getWeatherDescription(symbol)}</div>
                 `;
