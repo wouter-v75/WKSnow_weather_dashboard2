@@ -47,7 +47,7 @@
             max-width: 1200px;
             margin: 0 auto;
             display: grid;
-            grid-template-columns: 1fr 1fr 1fr 1fr 1fr;
+            grid-template-columns: 1fr 1fr 1fr 1fr;
             grid-template-rows: auto 1fr;
             gap: 8px;
             height: calc(100vh - 16px);
@@ -85,6 +85,18 @@
             font-size: 0.65rem;
             line-height: 1.3;
             z-index: 1000;
+        }
+
+        .forecast-column {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            height: 100%;
+        }
+
+        .forecast-card {
+            flex: 1;
+            min-height: 0;
         }
 
         .card {
@@ -363,7 +375,7 @@
         /* iPad landscape optimizations */
         @media (max-width: 1024px) and (orientation: landscape) {
             .dashboard {
-                grid-template-columns: repeat(5, 1fr);
+                grid-template-columns: repeat(4, 1fr);
                 gap: 6px;
                 height: calc(100vh - 12px);
             }
@@ -384,6 +396,12 @@
                 gap: 8px;
                 height: auto;
                 overflow: visible;
+            }
+            
+            .forecast-column {
+                grid-column: 1 / -1;
+                flex-direction: row;
+                gap: 8px;
             }
             
             body {
@@ -513,34 +531,37 @@
             </div>
         </div>
 
-        <!-- YR.no Forecast Card -->
-        <div class="card" id="forecast-card">
-            <div class="card-header">
-                <div class="card-icon">📅</div>
-                <div class="card-title">
-                    Mosetertoppen Today
-                    <span class="status-indicator status-online" id="forecast-status"></span>
+        <!-- YR.no Forecast Column -->
+        <div class="forecast-column">
+            <!-- Today's Forecast Card -->
+            <div class="card forecast-card" id="forecast-card">
+                <div class="card-header">
+                    <div class="card-icon">📅</div>
+                    <div class="card-title">
+                        Mosetertoppen Today
+                        <span class="status-indicator status-online" id="forecast-status"></span>
+                    </div>
+                </div>
+                <div id="forecast-content">
+                    <div class="forecast-item">
+                        <div class="forecast-time">Loading...</div>
+                    </div>
                 </div>
             </div>
-            <div id="forecast-content">
-                <div class="forecast-item">
-                    <div class="forecast-time">Loading...</div>
-                </div>
-            </div>
-        </div>
 
-        <!-- Tomorrow's Forecast Card -->
-        <div class="card" id="tomorrow-card">
-            <div class="card-header">
-                <div class="card-icon">📆</div>
-                <div class="card-title">
-                    Tomorrow's Forecast
-                    <span class="status-indicator status-online" id="tomorrow-status"></span>
+            <!-- Tomorrow's Forecast Card -->
+            <div class="card forecast-card" id="tomorrow-card">
+                <div class="card-header">
+                    <div class="card-icon">📆</div>
+                    <div class="card-title">
+                        Tomorrow's Forecast
+                        <span class="status-indicator status-online" id="tomorrow-status"></span>
+                    </div>
                 </div>
-            </div>
-            <div id="tomorrow-content">
-                <div class="forecast-item">
-                    <div class="forecast-time">Loading...</div>
+                <div id="tomorrow-content">
+                    <div class="forecast-item">
+                        <div class="forecast-time">Loading...</div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -977,7 +998,7 @@
             const todayForecasts = data.properties.timeseries.filter(item => {
                 const itemDate = new Date(item.time).toDateString();
                 return itemDate === today;
-            }).slice(0, 4); // Show next 4 time periods for today
+            }).slice(0, 3); // Show next 3 time periods for today (smaller card)
             
             todayForecasts.forEach(item => {
                 const time = new Date(item.time);
@@ -1008,12 +1029,12 @@
             const tomorrowForecasts = data.properties.timeseries.filter(item => {
                 const itemDate = new Date(item.time).toDateString();
                 return itemDate === tomorrowDateString;
-            }).slice(0, 4); // Show 4 time periods for tomorrow
+            }).slice(0, 3); // Show 3 time periods for tomorrow (smaller card)
             
             // If we don't have tomorrow's data, try to get early morning hours
             if (tomorrowForecasts.length === 0) {
                 console.log('No tomorrow data found, using next available forecasts');
-                const futureForecasts = data.properties.timeseries.slice(8, 12); // Skip today's data
+                const futureForecasts = data.properties.timeseries.slice(8, 11); // Skip today's data, show 3 items
                 futureForecasts.forEach(item => {
                     const time = new Date(item.time);
                     const temp = Math.round(item.data.instant.details.air_temperature);
