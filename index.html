@@ -1300,6 +1300,77 @@
             });
         }
 
+        // Update Hafjell lift status
+        async function updateLiftStatus() {
+            try {
+                // In a real implementation, this would fetch from Hafjell's lift status API
+                const liftData = await fetchLiftData();
+                
+                if (liftData) {
+                    console.log('Lift data received:', liftData);
+                    
+                    // Update each lift status
+                    Object.keys(liftData).forEach(liftKey => {
+                        const liftElement = document.getElementById(`lift-${liftKey}`);
+                        if (liftElement) {
+                            const status = liftData[liftKey];
+                            liftElement.textContent = status.toUpperCase();
+                            liftElement.className = `lift-status ${status.toLowerCase()}`;
+                        }
+                    });
+                    
+                    document.getElementById('lifts-status').className = 'status-indicator status-online';
+                    console.log('Lift status updated successfully');
+                    
+                    return liftData;
+                } else {
+                    throw new Error('No lift data received');
+                }
+            } catch (error) {
+                console.error('Error updating lift status:', error);
+                document.getElementById('lifts-status').className = 'status-indicator status-offline';
+                
+                // Set all lifts to unknown status
+                updateLiftStatusFallback();
+                console.log('Lift data unavailable - showing offline status');
+                return null;
+            }
+        }
+
+        // Fetch lift data (server-side implementation needed for production)
+        async function fetchLiftData() {
+            try {
+                // Try to use API function first (if deployed)
+                if (window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
+                    const response = await fetch('/api/lifts');
+                    if (response.ok) {
+                        return await response.json();
+                    }
+                }
+            } catch (error) {
+                console.log('Lift API endpoint not available');
+            }
+            
+            console.log('No lift data source available - real implementation needed');
+            throw new Error('No lift data source configured');
+        }
+
+        // Fallback lift status when API is unavailable
+        function updateLiftStatusFallback() {
+            const lifts = [
+                'backyardheisen', 'hafjell360', 'gondolen', 'vidsynexpressen', 
+                'hafjellheis1', 'hafjellheis2', 'kjusheisen'
+            ];
+            
+            lifts.forEach(liftKey => {
+                const liftElement = document.getElementById(`lift-${liftKey}`);
+                if (liftElement) {
+                    liftElement.textContent = 'UNKNOWN';
+                    liftElement.className = 'lift-status unknown';
+                }
+            });
+        }
+
         // Refresh webcam image
         function refreshWebcam() {
             const webcamImg = document.getElementById('hafjell-webcam');
@@ -1373,17 +1444,22 @@
             
             // Add loading state to all cards
             document.getElementById('sensors-card').classList.add('loading');
+            document.getElementById('lifts-card').classList.add('loading');
             document.getElementById('hafjell-card').classList.add('loading');
             document.getElementById('forecast-card').classList.add('loading');
             document.getElementById('tomorrow-card').classList.add('loading');
-            document.getElementById('temp-graph-card').classList.add('loading');
             
             try {
                 // Refresh all data sources simultaneously
                 const [outdoorTemp, hafjellTemps] = await Promise.all([
                     updatePersonalSensors(),
-                    updateHafjellWeather(),
-                    updateForecast()
+                    updateHafjellWeather()
+                ]);
+                
+                // Run forecast and lift updates separately  
+                await Promise.all([
+                    updateForecast(),
+                    updateLiftStatus()
                 ]);
                 
                 // Refresh webcam image
@@ -1395,11 +1471,9 @@
                 
                 if (outdoorTemp || hafjellTopTemp || hafjellBottomTemp) {
                     updateTempChart(outdoorTemp, hafjellTopTemp, hafjellBottomTemp);
-                    document.getElementById('graph-status').className = 'status-indicator status-online';
                     console.log('Chart updated with available data - Outdoor:', outdoorTemp, 'Top:', hafjellTopTemp, 'Bottom:', hafjellBottomTemp);
                 } else {
                     console.log('No temperature data available from any source');
-                    document.getElementById('graph-status').className = 'status-indicator status-offline';
                 }
                 
                 updateTimestamp();
@@ -1407,14 +1481,13 @@
                 console.log('All data refreshed successfully at', new Date().toLocaleTimeString('en-NO'));
             } catch (error) {
                 console.error('Error refreshing data:', error);
-                document.getElementById('graph-status').className = 'status-indicator status-offline';
             } finally {
                 // Remove loading state from all cards
                 document.getElementById('sensors-card').classList.remove('loading');
+                document.getElementById('lifts-card').classList.remove('loading');
                 document.getElementById('hafjell-card').classList.remove('loading');
                 document.getElementById('forecast-card').classList.remove('loading');
                 document.getElementById('tomorrow-card').classList.remove('loading');
-                document.getElementById('temp-graph-card').classList.remove('loading');
                 
                 refreshBtn.disabled = false;
                 refreshBtn.textContent = '🔄 Refresh';
@@ -1429,14 +1502,14 @@
             
             // Auto-refresh every 5 minutes (300,000 milliseconds)
             const refreshInterval = setInterval(async () => {
-                console.log('Auto-refreshing all data including Hafjell stations and webcam...');
+                console.log('Auto-refreshing all data including Hafjell stations, lifts, and webcam...');
                 await refreshAllData();
             }, 5 * 60 * 1000);
             
             // Update timestamp every minute
             setInterval(updateTimestamp, 60 * 1000);
             
-            console.log('Dashboard initialized with 5-minute auto-refresh - real data only, 12-hour temperature history, chart updates when any sensor has data');
+            console.log('Dashboard initialized with 5-minute auto-refresh - real data only, 12-hour temperature history, chart updates when any sensor has data, includes lift status');
         }
 
         // Start the dashboard when page loads
