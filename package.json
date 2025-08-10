@@ -1,0 +1,29 @@
+// ==========================================
+// FILE: package.json
+// ==========================================
+
+{
+  "name": "wk-snow-weather-dashboard",
+  "version": "1.0.0",
+  "description": "A glassmorphism weather dashboard for WK with Homey Pro integration, Hafjell stations, and YR.no forecast",
+  "main": "index.html",
+  "scripts": {
+    "dev": "vercel dev",
+    "build": "echo 'Static build complete'",
+    "start": "vercel dev"
+  },
+  "keywords": [
+    "weather",
+    "dashboard",
+    "homey",
+    "hafjell",
+    "yr.no",
+    "glassmorphism",
+    "snow"
+  ],
+  "author": "Your Name",
+  "license": "MIT",
+  "devDependencies": {
+    "vercel": "^32.0.0"
+  }
+}
