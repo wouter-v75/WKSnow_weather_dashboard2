@@ -47,7 +47,7 @@
             max-width: 1200px;
             margin: 0 auto;
             display: grid;
-            grid-template-columns: 1fr 1fr 1fr 1fr;
+            grid-template-columns: 1fr 1fr 1fr 1fr 1fr;
             grid-template-rows: auto 1fr;
             gap: 8px;
             height: calc(100vh - 16px);
@@ -363,7 +363,7 @@
         /* iPad landscape optimizations */
         @media (max-width: 1024px) and (orientation: landscape) {
             .dashboard {
-                grid-template-columns: repeat(4, 1fr);
+                grid-template-columns: repeat(5, 1fr);
                 gap: 6px;
                 height: calc(100vh - 12px);
             }
@@ -380,7 +380,7 @@
         @media (max-width: 768px) {
             .dashboard {
                 grid-template-columns: 1fr 1fr;
-                grid-template-rows: auto 1fr 1fr;
+                grid-template-rows: auto 1fr 1fr 1fr;
                 gap: 8px;
                 height: auto;
                 overflow: visible;
@@ -523,6 +523,22 @@
                 </div>
             </div>
             <div id="forecast-content">
+                <div class="forecast-item">
+                    <div class="forecast-time">Loading...</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tomorrow's Forecast Card -->
+        <div class="card" id="tomorrow-card">
+            <div class="card-header">
+                <div class="card-icon">📆</div>
+                <div class="card-title">
+                    Tomorrow's Forecast
+                    <span class="status-indicator status-online" id="tomorrow-status"></span>
+                </div>
+            </div>
+            <div id="tomorrow-content">
                 <div class="forecast-item">
                     <div class="forecast-time">Loading...</div>
                 </div>
@@ -920,7 +936,7 @@
             return '🌤️';
         }
 
-        // Update YR.no forecast for Mosetertoppen
+        // Update YR.no forecast for Mosetertoppen (today and tomorrow)
         async function updateForecast() {
             try {
                 const response = await fetch(
@@ -938,11 +954,14 @@
                 
                 const data = await response.json();
                 displayForecast(data);
+                displayTomorrowForecast(data);
                 
                 document.getElementById('forecast-status').className = 'status-indicator status-online';
+                document.getElementById('tomorrow-status').className = 'status-indicator status-online';
             } catch (error) {
                 console.error('Error updating forecast:', error);
                 document.getElementById('forecast-status').className = 'status-indicator status-offline';
+                document.getElementById('tomorrow-status').className = 'status-indicator status-offline';
                 
                 // No mock forecast data - keep previous values or show offline status
                 console.log('YR.no forecast unavailable - showing offline status');
@@ -958,7 +977,7 @@
             const todayForecasts = data.properties.timeseries.filter(item => {
                 const itemDate = new Date(item.time).toDateString();
                 return itemDate === today;
-            }).slice(0, 5); // Show next 5 time periods to fit on screen
+            }).slice(0, 4); // Show next 4 time periods for today
             
             todayForecasts.forEach(item => {
                 const time = new Date(item.time);
@@ -975,6 +994,58 @@
                 `;
                 forecastContent.appendChild(forecastItem);
             });
+        }
+
+        // Display tomorrow's forecast data
+        function displayTomorrowForecast(data) {
+            const tomorrowContent = document.getElementById('tomorrow-content');
+            tomorrowContent.innerHTML = '';
+            
+            const tomorrow = new Date();
+            tomorrow.setDate(tomorrow.getDate() + 1);
+            const tomorrowDateString = tomorrow.toDateString();
+            
+            const tomorrowForecasts = data.properties.timeseries.filter(item => {
+                const itemDate = new Date(item.time).toDateString();
+                return itemDate === tomorrowDateString;
+            }).slice(0, 4); // Show 4 time periods for tomorrow
+            
+            // If we don't have tomorrow's data, try to get early morning hours
+            if (tomorrowForecasts.length === 0) {
+                console.log('No tomorrow data found, using next available forecasts');
+                const futureForecasts = data.properties.timeseries.slice(8, 12); // Skip today's data
+                futureForecasts.forEach(item => {
+                    const time = new Date(item.time);
+                    const temp = Math.round(item.data.instant.details.air_temperature);
+                    const symbol = item.data.next_1_hours?.summary?.symbol_code || 'clearsky_day';
+                    
+                    const forecastItem = document.createElement('div');
+                    forecastItem.className = 'forecast-item';
+                    forecastItem.innerHTML = `
+                        <div class="forecast-time">${time.toLocaleTimeString('en-NO', {hour: '2-digit', minute: '2-digit'})}</div>
+                        <div class="forecast-icon">${getWeatherIcon(symbol)}</div>
+                        <div class="forecast-temp">${temp}°C</div>
+                        <div class="forecast-desc">${getWeatherDescription(symbol)}</div>
+                    `;
+                    tomorrowContent.appendChild(forecastItem);
+                });
+            } else {
+                tomorrowForecasts.forEach(item => {
+                    const time = new Date(item.time);
+                    const temp = Math.round(item.data.instant.details.air_temperature);
+                    const symbol = item.data.next_1_hours?.summary?.symbol_code || 'clearsky_day';
+                    
+                    const forecastItem = document.createElement('div');
+                    forecastItem.className = 'forecast-item';
+                    forecastItem.innerHTML = `
+                        <div class="forecast-time">${time.toLocaleTimeString('en-NO', {hour: '2-digit', minute: '2-digit'})}</div>
+                        <div class="forecast-icon">${getWeatherIcon(symbol)}</div>
+                        <div class="forecast-temp">${temp}°C</div>
+                        <div class="forecast-desc">${getWeatherDescription(symbol)}</div>
+                    `;
+                    tomorrowContent.appendChild(forecastItem);
+                });
+            }
         }
 
         // Helper functions
@@ -1016,6 +1087,7 @@
             document.getElementById('sensors-card').classList.add('loading');
             document.getElementById('hafjell-card').classList.add('loading');
             document.getElementById('forecast-card').classList.add('loading');
+            document.getElementById('tomorrow-card').classList.add('loading');
             document.getElementById('temp-graph-card').classList.add('loading');
             
             try {
@@ -1050,6 +1122,7 @@
                 document.getElementById('sensors-card').classList.remove('loading');
                 document.getElementById('hafjell-card').classList.remove('loading');
                 document.getElementById('forecast-card').classList.remove('loading');
+                document.getElementById('tomorrow-card').classList.remove('loading');
                 document.getElementById('temp-graph-card').classList.remove('loading');
                 
                 refreshBtn.disabled = false;
