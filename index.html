@@ -639,6 +639,33 @@
             text-shadow: 1px 1px 2px rgba(0,0,0,0.6);
         }
 
+        /* ========== SWIX WAX TEMPERATURE COLOR CODING ========== */
+        
+        .wax-polar {
+            color: #00ff88 !important;
+            text-shadow: 2px 2px 6px rgba(0,0,0,0.9), 0 0 10px rgba(0,255,136,0.5) !important;
+        }
+        
+        .wax-blue {
+            color: #4a9eff !important;
+            text-shadow: 2px 2px 6px rgba(0,0,0,0.9), 0 0 10px rgba(74,158,255,0.5) !important;
+        }
+        
+        .wax-violet {
+            color: #b885ff !important;
+            text-shadow: 2px 2px 6px rgba(0,0,0,0.9), 0 0 10px rgba(184,133,255,0.5) !important;
+        }
+        
+        .wax-red {
+            color: #ff6b6b !important;
+            text-shadow: 2px 2px 6px rgba(0,0,0,0.9), 0 0 10px rgba(255,107,107,0.5) !important;
+        }
+        
+        .wax-yellow {
+            color: #ffd93d !important;
+            text-shadow: 2px 2px 6px rgba(0,0,0,0.9), 0 0 10px rgba(255,217,61,0.5) !important;
+        }
+
         @media (max-width: 1024px) and (orientation: landscape) {
             .dashboard {
                 grid-template-columns: repeat(4, 1fr);
@@ -2118,12 +2145,20 @@
                 const windDirection = item.data.instant.details.wind_from_direction;
                 const windArrow = getWindArrow(windDirection);
                 
+                // Get Swix wax color for temperature CAREFULLY
+                let waxColorClass = '';
+                try {
+                    waxColorClass = getSwixWaxColor(temp);
+                } catch (error) {
+                    console.warn('⚠️ Forecast color coding failed for temp:', temp, error);
+                }
+                
                 const forecastItem = document.createElement('div');
                 forecastItem.className = 'forecast-item';
                 forecastItem.innerHTML = `
                     <div class="forecast-time">${time.toLocaleTimeString('en-NO', {hour: '2-digit', minute: '2-digit'})}</div>
                     <div class="forecast-icon">${getWeatherIcon(symbol)}</div>
-                    <div class="forecast-temp">${temp}°C</div>
+                    <div class="forecast-temp ${waxColorClass}">${temp}°C</div>
                     <div class="forecast-wind">
                         <span class="wind-arrow">${windArrow}</span>
                         <span class="wind-speed">${Math.round(windSpeed)} m/s</span>
@@ -2163,12 +2198,20 @@
                 const windDirection = item.data.instant.details.wind_from_direction;
                 const windArrow = getWindArrow(windDirection);
                 
+                // Get Swix wax color for temperature CAREFULLY
+                let waxColorClass = '';
+                try {
+                    waxColorClass = getSwixWaxColor(temp);
+                } catch (error) {
+                    console.warn('⚠️ Tomorrow forecast color coding failed for temp:', temp, error);
+                }
+                
                 const forecastItem = document.createElement('div');
                 forecastItem.className = 'forecast-item';
                 forecastItem.innerHTML = `
                     <div class="forecast-time">${time.toLocaleTimeString('en-NO', {hour: '2-digit', minute: '2-digit'})}</div>
                     <div class="forecast-icon">${getWeatherIcon(symbol)}</div>
-                    <div class="forecast-temp">${temp}°C</div>
+                    <div class="forecast-temp ${waxColorClass}">${temp}°C</div>
                     <div class="forecast-wind">
                         <span class="wind-arrow">${windArrow}</span>
                         <span class="wind-speed">${Math.round(windSpeed)} m/s</span>
