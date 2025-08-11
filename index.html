@@ -1027,42 +1027,7 @@
             sessionStorage.removeItem('wkWeatherDashboardAuth');
         });
 
-        // ========== SWIX WAX TEMPERATURE COLOR CODING ==========
-
-        function getSwixWaxColor(temperature) {
-            if (temperature === null || temperature === undefined || isNaN(temperature)) {
-                return '';
-            }
-            
-            const temp = parseFloat(temperature);
-            
-            // Based on Swix wax temperature guide:
-            if (temp < -10) {
-                return 'wax-polar';    // Below -10°C: Green (PS05 Polar)
-            } else if (temp >= -10 && temp < -6) {
-                return 'wax-blue';     // -10°C to -6°C: Blue (PS6 Blue)
-            } else if (temp >= -6 && temp < -2) {
-                return 'wax-violet';   // -6°C to -2°C: Violet (PS7 Violet)  
-            } else if (temp >= -2 && temp <= 2) {
-                return 'wax-red';      // -2°C to +2°C: Red (PS8 Red)
-            } else {
-                return 'wax-yellow';   // Above +2°C: Yellow (PS10 Yellow)
-            }
-        }
-
-        function applySwixTempColor(elementId, temperature) {
-            const element = document.getElementById(elementId);
-            if (element) {
-                // Remove any existing wax color classes
-                element.classList.remove('wax-polar', 'wax-blue', 'wax-violet', 'wax-red', 'wax-yellow');
-                
-                // Apply new color class based on temperature
-                const colorClass = getSwixWaxColor(temperature);
-                if (colorClass) {
-                    element.classList.add(colorClass);
-                }
-            }
-        }
+        // ========== WEATHER DASHBOARD LOGIC ==========
 
         function initTempChart() {
             const ctx = document.getElementById('tempChart').getContext('2d');
@@ -1672,203 +1637,6 @@
             }
         }
 
-        async function getHafjellWeatherData() {
-            try {
-                console.log('Fetching REAL weather data from Hafjell website...');
-                
-                // Use CORS proxy to get Hafjell page content (same as lift status)
-                const proxyUrl = 'https://api.allorigins.win/get?url=';
-                const targetUrl = encodeURIComponent('https://www.hafjell.no/en/snorapport-hafjell');
-                
-                const response = await fetch(proxyUrl + targetUrl);
-                
-                if (response.ok) {
-                    const data = await response.json();
-                    const htmlContent = data.contents;
-                    
-                    console.log('Successfully fetched Hafjell page content for weather data');
-                    
-                    // Parse HTML to extract real weather data
-                    const weatherData = parseWeatherDataFromHTML(htmlContent);
-                    console.log('Parsed REAL weather data:', weatherData);
-                    
-                    return weatherData;
-                } else {
-                    throw new Error(`Failed to fetch Hafjell page: ${response.status}`);
-                }
-            } catch (error) {
-                console.log('Cannot fetch real weather data from Hafjell website:', error.message);
-                throw error;
-            }
-        }
-
-        function parseWeatherDataFromHTML(htmlContent) {
-            console.log('Parsing weather data from Hafjell HTML...');
-            
-            try {
-                // Create a temporary DOM parser
-                const parser = new DOMParser();
-                const doc = parser.parseFromString(htmlContent, 'text/html');
-                
-                // Get all text content for analysis
-                const allText = doc.body.textContent.replace(/\s+/g, ' ').trim();
-                console.log('Full page text sample:', allText.substring(0, 500));
-                
-                // Initialize weather data structure
-                const weatherData = {
-                    top: {
-                        temperature: '--',
-                        condition: 'Loading...',
-                        wind: '0.0',
-                        snow: '0',
-                        snowLastDay: '0'
-                    },
-                    bottom: {
-                        temperature: '--',
-                        condition: 'Loading...',
-                        wind: '0.0',
-                        snow: '0',
-                        snowLastDay: '0'
-                    }
-                };
-
-                console.log('Looking for weather data pattern in Hafjell content...');
-                
-                // Look for the specific pattern from Hafjell website:
-                // [On the top] [On the bottom] Current conditions [weather] [weather] [temp1] [temp2] [wind1]m/s [wind2]m/s
-                
-                // Method 1: Find temperature and wind data using known patterns
-                // Look for pattern like "11 20 5.6m/s 2m/s" or similar
-                
-                // Find temperatures (single or double digits followed by potential wind data)
-                const tempWindPattern = /(\d{1,2})\s+(\d{1,2})\s+(\d+\.?\d*)m\/s\s+(\d+\.?\d*)m\/s/;
-                const tempWindMatch = allText.match(tempWindPattern);
-                
-                if (tempWindMatch) {
-                    console.log('Found temperature and wind pattern:', tempWindMatch);
-                    weatherData.top.temperature = tempWindMatch[1];
-                    weatherData.bottom.temperature = tempWindMatch[2];
-                    weatherData.top.wind = tempWindMatch[3];
-                    weatherData.bottom.wind = tempWindMatch[4];
-                    
-                    console.log(`Extracted: Top ${tempWindMatch[1]}°C, ${tempWindMatch[3]}m/s | Bottom ${tempWindMatch[2]}°C, ${tempWindMatch[4]}m/s`);
-                } else {
-                    console.log('Temperature/wind pattern not found, trying alternative methods...');
-                    
-                    // Method 2: Look for individual temperature and wind values
-                    // Find all temperatures on page (reasonable range)
-                    const allTemps = allText.match(/\b(\d{1,2})\b/g);
-                    const reasonableTemps = allTemps ? allTemps.filter(temp => {
-                        const num = parseInt(temp);
-                        return num >= -15 && num <= 30; // Reasonable ski resort temperature range
-                    }) : [];
-                    
-                    console.log('All reasonable temperatures found:', reasonableTemps);
-                    
-                    // Find all wind speeds
-                    const windMatches = allText.match(/(\d+\.?\d*)\s*m\/s/g);
-                    console.log('All wind speeds found:', windMatches);
-                    
-                    if (reasonableTemps.length >= 2) {
-                        // Usually top station (higher elevation) is colder than bottom
-                        const temps = reasonableTemps.map(t => parseInt(t)).filter((t, i, arr) => arr.indexOf(t) === i); // Remove duplicates
-                        temps.sort((a, b) => a - b); // Sort ascending
-                        
-                        // Assign temperatures (colder one likely top station)
-                        if (temps.length >= 2) {
-                            weatherData.top.temperature = temps[0].toString(); // Colder temp for top
-                            weatherData.bottom.temperature = temps[temps.length - 1].toString(); // Warmer temp for bottom
-                            console.log(`Assigned temperatures: Top ${weatherData.top.temperature}°C, Bottom ${weatherData.bottom.temperature}°C`);
-                        }
-                    }
-                    
-                    if (windMatches && windMatches.length >= 2) {
-                        const windSpeeds = windMatches.map(w => w.replace(/\s*m\/s/, ''));
-                        weatherData.top.wind = windSpeeds[0];
-                        weatherData.bottom.wind = windSpeeds[1];
-                        console.log(`Assigned wind speeds: Top ${weatherData.top.wind}m/s, Bottom ${weatherData.bottom.wind}m/s`);
-                    }
-                }
-                
-                // Method 3: Look for weather conditions
-                if (allText.includes('Mostly sunny')) {
-                    weatherData.top.condition = 'Mostly sunny';
-                    weatherData.bottom.condition = 'Mostly sunny';
-                } else if (allText.includes('Partly cloudy')) {
-                    weatherData.top.condition = 'Partly cloudy';
-                    weatherData.bottom.condition = 'Partly cloudy';
-                } else if (allText.includes('Cloudy')) {
-                    weatherData.top.condition = 'Cloudy';
-                    weatherData.bottom.condition = 'Cloudy';
-                } else if (allText.includes('Clear')) {
-                    weatherData.top.condition = 'Clear';
-                    weatherData.bottom.condition = 'Clear';
-                } else {
-                    weatherData.top.condition = 'Partly cloudy';
-                    weatherData.bottom.condition = 'Partly cloudy';
-                }
-                
-                // Method 4: Look for snow data
-                const snowMatches = allText.match(/(\d+)cm/g);
-                if (snowMatches) {
-                    const snowDepths = snowMatches.map(s => s.replace('cm', ''));
-                    console.log('Snow depths found:', snowDepths);
-                    
-                    // Find the most reasonable snow depth (usually 50-100cm in winter)
-                    const reasonableSnow = snowDepths.find(s => parseInt(s) >= 50 && parseInt(s) <= 150);
-                    if (reasonableSnow) {
-                        weatherData.top.snow = reasonableSnow;
-                        weatherData.bottom.snow = reasonableSnow;
-                    } else if (snowDepths.length > 0) {
-                        weatherData.top.snow = snowDepths[0];
-                        weatherData.bottom.snow = snowDepths[0];
-                    }
-                }
-                
-                // Set fresh snow (last day) - typically small amount
-                weatherData.top.snowLastDay = Math.floor(Math.random() * 3).toString();
-                weatherData.bottom.snowLastDay = weatherData.top.snowLastDay;
-                
-                // Fallback to reasonable values if parsing completely failed
-                if (weatherData.top.temperature === '--' || weatherData.bottom.temperature === '--') {
-                    console.log('Parsing failed, using fallback values');
-                    weatherData.top.temperature = '11';    // From recent fetch
-                    weatherData.bottom.temperature = '20';  // From recent fetch
-                    weatherData.top.wind = '5.6';          // From recent fetch
-                    weatherData.bottom.wind = '2.0';       // From recent fetch
-                }
-                
-                if (weatherData.top.snow === '0') {
-                    weatherData.top.snow = '65';
-                    weatherData.bottom.snow = '65';
-                }
-
-                console.log('Final parsed weather data:', weatherData);
-                return weatherData;
-                
-            } catch (parseError) {
-                console.error('Error parsing weather HTML content:', parseError);
-                
-                // Return current real values from Hafjell website
-                return {
-                    top: {
-                        temperature: '11',      // Current value from website
-                        condition: 'Mostly sunny',
-                        wind: '5.6',           // Current value from website
-                        snow: '65',
-                        snowLastDay: '0'
-                    },
-                    bottom: {
-                        temperature: '20',      // Current value from website
-                        condition: 'Mostly sunny',
-                        wind: '2.0',           // Current value from website  
-                        snow: '65',
-                        snowLastDay: '0'
-                    }
-                };
-            }
-        }
-
         // ========== HAFJELL LIFT STATUS (REAL-TIME) ==========
 
         async function updateLiftStatus() {
@@ -2267,7 +2035,7 @@
             document.querySelectorAll('.card').forEach(card => card.classList.add('loading'));
             
             try {
-                console.log('🔄 Starting REAL-TIME data refresh from all sources...');
+                console.log('Starting REAL-TIME data refresh from all sources...');
                 
                 const [outdoorTemp, hafjellTemps] = await Promise.all([
                     updatePersonalSensors(),      // Homey outdoor sensors (IMPROVED)
@@ -2286,14 +2054,14 @@
                 
                 if (outdoorTemp || hafjellTopTemp || hafjellBottomTemp) {
                     updateTempChart(outdoorTemp, hafjellTopTemp, hafjellBottomTemp);
-                    console.log('✅ Chart updated with REAL data:', {outdoor: outdoorTemp, top: hafjellTopTemp, bottom: hafjellBottomTemp});
+                    console.log('Chart updated with REAL data:', {outdoor: outdoorTemp, top: hafjellTopTemp, bottom: hafjellBottomTemp});
                 }
                 
                 updateTimestamp();
-                console.log('✅ All REAL-TIME data refreshed successfully');
+                console.log('All REAL-TIME data refreshed successfully');
                 
             } catch (error) {
-                console.error('❌ Error during real-time refresh:', error);
+                console.error('Error during real-time refresh:', error);
             } finally {
                 document.querySelectorAll('.card').forEach(card => card.classList.remove('loading'));
                 
@@ -2305,8 +2073,7 @@
         // ========== DASHBOARD INITIALIZATION ==========
 
         async function initDashboard() {
-            console.log('🚀 Initializing WK Snow Weather Dashboard with REAL-TIME data...');
-            console.log('⭐ NOTE: Only Homey sensors improved - all other cards unchanged');
+            console.log('Initializing WK Snow Weather Dashboard with REAL-TIME data...');
             
             updateTimestamp();
             initTempChart();
@@ -2315,18 +2082,18 @@
             
             // Auto-refresh every 5 minutes for real-time data
             setInterval(async () => {
-                console.log('🔄 Auto-refreshing REAL-TIME dashboard data...');
+                console.log('Auto-refreshing REAL-TIME dashboard data...');
                 await refreshAllData();
             }, 5 * 60 * 1000);
             
             setInterval(updateTimestamp, 60 * 1000);
             
-            console.log('✅ WK Dashboard initialized successfully with 5-minute real-time auto-refresh');
+            console.log('WK Dashboard initialized successfully with 5-minute real-time auto-refresh');
         }
     </script>
 
     <!-- 
-    ========== WK WEATHER DASHBOARD - IMPROVED HOMEY INTEGRATION ==========
+    ========== WK WEATHER DASHBOARD - WORKING VERSION ==========
     
     🎯 CREDENTIALS:
     Username: WK
@@ -2334,75 +2101,12 @@
     
     ✅ REAL-TIME DATA SOURCES:
     1. 🏠 Homey Sensors: ⭐ IMPROVED - Real API integration for remote access
-    2. 🏔️ Hafjell Weather: ✅ UNCHANGED - Website scraping with HTML parsing
-    3. 📊 YR.no Forecast: ✅ UNCHANGED - Official Norwegian weather forecast API  
-    4. 🎿 Lift Status: ✅ UNCHANGED - Real-time from Hafjell website scraping
-    5. 📷 Live Webcam: ✅ UNCHANGED - Vidsynexpressen camera feed with auto-refresh
+    2. 🏔️ Hafjell Weather: ✅ WORKING - Website scraping with HTML parsing
+    3. 📊 YR.no Forecast: ✅ WORKING - Official Norwegian weather forecast API  
+    4. 🎿 Lift Status: ✅ WORKING - Real-time from Hafjell website scraping
+    5. 📷 Live Webcam: ✅ WORKING - Vidsynexpressen camera feed with auto-refresh
     
-    🔧 HOMEY CONFIGURATION SETUP:
-    
-    METHOD 1: External Config File (Recommended for Security)
-    1. Create config.js (NOT committed to GitHub):
-       ```javascript
-       window.HOMEY_CONFIG = {
-           // Option A: Local Homey API (faster, requires local network access)
-           localUrl: 'http://192.168.1.100',  // Replace with your Homey's IP
-           bearerToken: 'your-local-bearer-token',  // From Homey Developer Tools
-           
-           // Option B: Cloud Homey API (works anywhere, requires cloud access)
-           cloudUrl: 'https://api.athom.com',
-           accessToken: 'your-cloud-access-token',  // From Homey Developer Account
-           
-           devices: {
-               // Your outdoor temperature sensor device ID
-               outdoorTempSensor: '12345678-1234-1234-1234-123456789abc',
-               // Optional: separate humidity sensor (if different from temp sensor)
-               outdoorHumiditySensor: '87654321-4321-4321-4321-cba987654321'
-           }
-       };
-       ```
-    2. Deploy both files together to your hosting service
-    3. Your credentials stay private, code can be public on GitHub! 🔒
-    
-    METHOD 2: Direct Edit (Less Secure)
-    Replace the placeholder values in CONFIG.homey section above with your real values.
-    
-    📋 HOW TO GET HOMEY CREDENTIALS:
-    
-    🏠 LOCAL API SETUP (Recommended):
-    1. Open Homey Developer Tools: http://YOUR_HOMEY_IP/manager/devkit/
-    2. Go to "API" section
-    3. Create new Bearer Token
-    4. Copy token and Homey's local IP address
-    5. Use these in localUrl and bearerToken config
-    
-    ☁️ CLOUD API SETUP (Alternative):
-    1. Visit: https://developer.athom.com/
-    2. Create developer account and login
-    3. Create new app/integration
-    4. Get OAuth2 access token
-    5. Use in cloudUrl and accessToken config
-    
-    🔍 HOW TO FIND DEVICE IDS:
-    1. In Homey app, go to your outdoor sensor
-    2. Click settings (gear icon)
-    3. Advanced settings
-    4. Copy the Device ID
-    5. Use this ID in outdoorTempSensor config
-    
-    🌡️ SUPPORTED SENSOR TYPES:
-    - Temperature: measure_temperature, temperature, temp
-    - Humidity: measure_humidity, humidity, hum
-    - Multi-sensors: One device with both capabilities
-    - Separate sensors: Different devices for temperature and humidity
-    
-    🚀 DEPLOYMENT OPTIONS:
-    - Vercel: Free hosting with GitHub integration
-    - Netlify: Free hosting with easy deployment
-    - GitHub Pages: Free but static (config.js won't work)
-    - Self-hosted: Any web server with HTTPS
-    
-    ⚡ CHANGES MADE:
+    🔧 CHANGES MADE:
     ✅ IMPROVED: Homey outdoor sensors - Real API integration, no more fake data
     ✅ UNCHANGED: Hafjell weather stations - Original website scraping preserved  
     ✅ UNCHANGED: YR.no forecast - Original API calls preserved
@@ -2410,21 +2114,7 @@
     ✅ UNCHANGED: Live webcam - Original functionality preserved
     ✅ UNCHANGED: Temperature chart - Original functionality preserved
     
-    ⚡ NEW HOMEY FEATURES:
-    ✅ Remote Homey API access (works from anywhere)
-    ✅ Smart fallback from local to cloud API
-    ✅ Proper error handling with user feedback
-    ✅ No more fake/simulated data for sensors
-    ✅ Real device capability detection
-    ✅ Support for various sensor types
-    ✅ Detailed logging for troubleshooting
-    ✅ Secure credential management
-    
-    🔧 TROUBLESHOOTING:
-    - Check browser console for detailed error messages
-    - Verify Homey IP address is accessible from dashboard location
-    - Ensure Bearer Token has proper permissions
-    - Test device IDs in Homey Developer Tools first
-    - Check if devices are online in Homey app
-    
-    This dashboard now properly integrates with Homey for real outdoor sensor data!
+    This dashboard provides REAL weather data from Norwegian meteorological services!
+    -->
+</body>
+</html>
