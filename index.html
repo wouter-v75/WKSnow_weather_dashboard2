@@ -639,6 +639,33 @@
             text-shadow: 1px 1px 2px rgba(0,0,0,0.6);
         }
 
+        /* ========== SWIX WAX TEMPERATURE COLOR CODING ========== */
+        
+        .wax-polar {
+            color: #00ff88 !important;
+            text-shadow: 2px 2px 6px rgba(0,0,0,0.9), 0 0 10px rgba(0,255,136,0.5) !important;
+        }
+        
+        .wax-blue {
+            color: #4a9eff !important;
+            text-shadow: 2px 2px 6px rgba(0,0,0,0.9), 0 0 10px rgba(74,158,255,0.5) !important;
+        }
+        
+        .wax-violet {
+            color: #b885ff !important;
+            text-shadow: 2px 2px 6px rgba(0,0,0,0.9), 0 0 10px rgba(184,133,255,0.5) !important;
+        }
+        
+        .wax-red {
+            color: #ff6b6b !important;
+            text-shadow: 2px 2px 6px rgba(0,0,0,0.9), 0 0 10px rgba(255,107,107,0.5) !important;
+        }
+        
+        .wax-yellow {
+            color: #ffd93d !important;
+            text-shadow: 2px 2px 6px rgba(0,0,0,0.9), 0 0 10px rgba(255,217,61,0.5) !important;
+        }
+
         @media (max-width: 1024px) and (orientation: landscape) {
             .dashboard {
                 grid-template-columns: repeat(4, 1fr);
@@ -1027,7 +1054,42 @@
             sessionStorage.removeItem('wkWeatherDashboardAuth');
         });
 
-        // ========== WEATHER DASHBOARD LOGIC ==========
+        // ========== SWIX WAX TEMPERATURE COLOR CODING ==========
+
+        function getSwixWaxColor(temperature) {
+            if (temperature === null || temperature === undefined || isNaN(temperature)) {
+                return '';
+            }
+            
+            const temp = parseFloat(temperature);
+            
+            // Based on Swix wax temperature guide:
+            if (temp < -10) {
+                return 'wax-polar';    // Below -10°C: Green (PS05 Polar)
+            } else if (temp >= -10 && temp < -6) {
+                return 'wax-blue';     // -10°C to -6°C: Blue (PS6 Blue)
+            } else if (temp >= -6 && temp < -2) {
+                return 'wax-violet';   // -6°C to -2°C: Violet (PS7 Violet)  
+            } else if (temp >= -2 && temp <= 2) {
+                return 'wax-red';      // -2°C to +2°C: Red (PS8 Red)
+            } else {
+                return 'wax-yellow';   // Above +2°C: Yellow (PS10 Yellow)
+            }
+        }
+
+        function applySwixTempColor(elementId, temperature) {
+            const element = document.getElementById(elementId);
+            if (element) {
+                // Remove any existing wax color classes
+                element.classList.remove('wax-polar', 'wax-blue', 'wax-violet', 'wax-red', 'wax-yellow');
+                
+                // Apply new color class based on temperature
+                const colorClass = getSwixWaxColor(temperature);
+                if (colorClass) {
+                    element.classList.add(colorClass);
+                }
+            }
+        }
 
         function initTempChart() {
             const ctx = document.getElementById('tempChart').getContext('2d');
@@ -1177,6 +1239,10 @@
                 if (tempData && (tempData.temperature !== undefined || tempData.temp !== undefined)) {
                     tempValue = (tempData.temperature || tempData.temp).toFixed(1);
                     document.getElementById('outdoor-temp').textContent = tempValue + '°C';
+                    
+                    // Apply Swix wax color coding
+                    applySwixTempColor('outdoor-temp', tempValue);
+                    
                     console.log('✅ Temperature updated:', tempValue + '°C');
                 } else {
                     document.getElementById('outdoor-temp').textContent = 'No data';
@@ -1412,12 +1478,18 @@
                 document.getElementById('top-snow-day').textContent = `${hafjellData.top.snowLastDay} cm`;
                 document.getElementById('top-icon').textContent = getWeatherIconFromCondition(hafjellData.top.condition);
                 
+                // Apply Swix wax color coding to temperatures
+                applySwixTempColor('top-temp', hafjellData.top.temperature);
+                
                 document.getElementById('bottom-temp').textContent = `${hafjellData.bottom.temperature}°C`;
                 document.getElementById('bottom-desc').textContent = hafjellData.bottom.condition;
                 document.getElementById('bottom-wind').textContent = `${hafjellData.bottom.wind} m/s`;
                 document.getElementById('bottom-snow').textContent = `${hafjellData.bottom.snow} cm`;
                 document.getElementById('bottom-snow-day').textContent = `${hafjellData.bottom.snowLastDay} cm`;
                 document.getElementById('bottom-icon').textContent = getWeatherIconFromCondition(hafjellData.bottom.condition);
+                
+                // Apply Swix wax color coding to temperatures
+                applySwixTempColor('bottom-temp', hafjellData.bottom.temperature);
                 
                 document.getElementById('hafjell-status').className = 'status-indicator status-online';
                 console.log('Hafjell weather updated successfully with REAL website data');
@@ -2083,12 +2155,15 @@
                 const windDirection = item.data.instant.details.wind_from_direction;
                 const windArrow = getWindArrow(windDirection);
                 
+                // Get Swix wax color for temperature
+                const waxColorClass = getSwixWaxColor(temp);
+                
                 const forecastItem = document.createElement('div');
                 forecastItem.className = 'forecast-item';
                 forecastItem.innerHTML = `
                     <div class="forecast-time">${time.toLocaleTimeString('en-NO', {hour: '2-digit', minute: '2-digit'})}</div>
                     <div class="forecast-icon">${getWeatherIcon(symbol)}</div>
-                    <div class="forecast-temp">${temp}°C</div>
+                    <div class="forecast-temp ${waxColorClass}">${temp}°C</div>
                     <div class="forecast-wind">
                         <span class="wind-arrow">${windArrow}</span>
                         <span class="wind-speed">${Math.round(windSpeed)} m/s</span>
@@ -2128,12 +2203,15 @@
                 const windDirection = item.data.instant.details.wind_from_direction;
                 const windArrow = getWindArrow(windDirection);
                 
+                // Get Swix wax color for temperature
+                const waxColorClass = getSwixWaxColor(temp);
+                
                 const forecastItem = document.createElement('div');
                 forecastItem.className = 'forecast-item';
                 forecastItem.innerHTML = `
                     <div class="forecast-time">${time.toLocaleTimeString('en-NO', {hour: '2-digit', minute: '2-digit'})}</div>
                     <div class="forecast-icon">${getWeatherIcon(symbol)}</div>
-                    <div class="forecast-temp">${temp}°C</div>
+                    <div class="forecast-temp ${waxColorClass}">${temp}°C</div>
                     <div class="forecast-wind">
                         <span class="wind-arrow">${windArrow}</span>
                         <span class="wind-speed">${Math.round(windSpeed)} m/s</span>
@@ -2298,9 +2376,9 @@
     Password: winter2025
     
     ✅ REAL-TIME DATA SOURCES:
-    1. 🏠 Homey Sensors: ⭐ IMPROVED - Now uses proper API calls (local/cloud) for remote access
-    2. 🏔️ Hafjell Weather: ✅ UNCHANGED - Website scraping with HTML parsing
-    3. 📊 YR.no Forecast: ✅ UNCHANGED - Official Norwegian weather forecast API  
+    1. 🏠 Homey Sensors: ⭐ IMPROVED - Real API integration + Swix wax color coding
+    2. 🏔️ Hafjell Weather: ✅ UNCHANGED - Website scraping with Swix color coding added
+    3. 📊 YR.no Forecast: ✅ UNCHANGED - Norwegian weather API + Swix color coding added
     4. 🎿 Lift Status: ✅ UNCHANGED - Real-time from Hafjell website scraping
     5. 📷 Live Webcam: ✅ UNCHANGED - Vidsynexpressen camera feed with auto-refresh
     
@@ -2367,13 +2445,15 @@
     - GitHub Pages: Free but static (config.js won't work)
     - Self-hosted: Any web server with HTTPS
     
-    ⚡ CHANGES MADE:
-    ✅ IMPROVED: Homey outdoor sensors - Real API integration, no more fake data
-    ✅ UNCHANGED: Hafjell weather stations - Original website scraping preserved  
-    ✅ UNCHANGED: YR.no forecast - Original API calls preserved
-    ✅ UNCHANGED: Lift status - Original website scraping preserved
-    ✅ UNCHANGED: Live webcam - Original functionality preserved
-    ✅ UNCHANGED: Temperature chart - Original functionality preserved
+    ⚡ NEW VISUAL FEATURES:
+    🎨 SWIX WAX COLOR CODING: Temperature displays now use Swix cross-country wax colors:
+    🟢 Green (Polar): Below -10°C/14°F - PS05 Polar wax conditions
+    🔵 Blue: -10°C to -6°C/14°F to 21°F - PS6 Blue wax conditions  
+    🟣 Violet: -6°C to -2°C/21°F to 28°F - PS7 Violet wax conditions
+    🔴 Red: -2°C to +2°C/28°F to 36°F - PS8 Red wax conditions
+    🟡 Yellow: Above +2°C/36°F - PS10 Yellow wax conditions
+    
+    This helps cross-country skiers instantly identify optimal wax conditions!
     
     ⚡ NEW HOMEY FEATURES:
     ✅ Remote Homey API access (works from anywhere)
