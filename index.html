@@ -627,6 +627,18 @@
             transition: all 0.3s ease;
         }
 
+        .error-message {
+            color: rgba(255, 255, 255, 0.7);
+            font-size: 0.7rem;
+            text-align: center;
+            padding: 8px;
+            background: rgba(231, 76, 60, 0.2);
+            border: 1px solid rgba(231, 76, 60, 0.3);
+            border-radius: 8px;
+            margin: 4px 0;
+            text-shadow: 1px 1px 2px rgba(0,0,0,0.6);
+        }
+
         @media (max-width: 1024px) and (orientation: landscape) {
             .dashboard {
                 grid-template-columns: repeat(4, 1fr);
@@ -905,12 +917,19 @@
         const CONFIG = {
             // Use external config if available, otherwise use placeholders for GitHub
             homey: window.HOMEY_CONFIG || {
+                // Local Homey API (preferred for reliability)
                 localUrl: 'http://YOUR_HOMEY_IP',
                 bearerToken: 'YOUR_HOMEY_BEARER_TOKEN',
+                
+                // Cloud Homey API (works remotely)
                 cloudUrl: 'https://api.athom.com',
                 accessToken: 'YOUR_HOMEY_ACCESS_TOKEN',
+                
+                // Device configurations
                 devices: {
+                    // Main outdoor temperature sensor
                     outdoorTempSensor: 'YOUR_OUTDOOR_SENSOR_DEVICE_ID',
+                    // Optional: separate humidity sensor (if different from temp sensor)
                     outdoorHumiditySensor: 'YOUR_OUTDOOR_HUMIDITY_DEVICE_ID'
                 }
             },
@@ -1116,115 +1135,261 @@
                 <small style="opacity: 0.7;">Auto-refresh: ${nextRefresh.toLocaleTimeString('en-NO', {hour: '2-digit', minute: '2-digit'})}</small>`;
         }
 
-        // ========== HOMEY OUTDOOR SENSORS ==========
+        // ========== IMPROVED HOMEY OUTDOOR SENSORS ==========
 
         async function updatePersonalSensors() {
-            console.log('Updating Homey outdoor sensors...');
+            console.log('🏠 Updating Homey outdoor sensors...');
+            
+            // Clear previous content
+            document.getElementById('outdoor-temp').textContent = '--°C';
+            document.getElementById('outdoor-humidity').textContent = '--%';
+            document.getElementById('sensor-status').className = 'status-indicator status-offline';
+            
             try {
-                if (CONFIG.homey.devices.outdoorTempSensor.includes('YOUR_')) {
-                    console.log('Homey not configured, using simulated outdoor data');
-                    const temp = (8 + (Math.random() - 0.5) * 6).toFixed(1);
-                    const humidity = Math.round(65 + (Math.random() - 0.5) * 20);
-                    
-                    document.getElementById('outdoor-temp').textContent = temp + '°C';
-                    document.getElementById('outdoor-humidity').textContent = humidity + '%';
-                    document.getElementById('sensor-status').className = 'status-indicator status-online';
-                    
-                    return temp;
+                // Check if Homey is configured
+                if (!isHomeyConfigured()) {
+                    throw new Error('Homey not configured - please set up your Homey credentials');
                 }
                 
-                const outdoorData = await getHomeyDeviceData(CONFIG.homey.devices.outdoorTempSensor);
+                console.log('📡 Fetching data from configured Homey API...');
                 
-                const tempValue = outdoorData.temperature ? outdoorData.temperature.toFixed(1) : '--';
-                const humidityValue = outdoorData.humidity ? Math.round(outdoorData.humidity) : '--';
+                // Get temperature data
+                let tempData = null;
+                let humidityData = null;
                 
-                document.getElementById('outdoor-temp').textContent = tempValue + '°C';
-                document.getElementById('outdoor-humidity').textContent = humidityValue + '%';
-                document.getElementById('sensor-status').className = 'status-indicator status-online';
+                if (CONFIG.homey.devices.outdoorTempSensor) {
+                    console.log('🌡️ Getting temperature from device:', CONFIG.homey.devices.outdoorTempSensor);
+                    tempData = await getHomeyDeviceData(CONFIG.homey.devices.outdoorTempSensor);
+                }
+                
+                // Get humidity data (may be from same sensor or different one)
+                const humidityDeviceId = CONFIG.homey.devices.outdoorHumiditySensor || CONFIG.homey.devices.outdoorTempSensor;
+                if (humidityDeviceId && humidityDeviceId !== CONFIG.homey.devices.outdoorTempSensor) {
+                    console.log('💧 Getting humidity from separate device:', humidityDeviceId);
+                    humidityData = await getHomeyDeviceData(humidityDeviceId);
+                } else if (tempData) {
+                    console.log('💧 Using humidity from temperature sensor');
+                    humidityData = tempData;
+                }
+                
+                // Extract and display temperature
+                let tempValue = null;
+                if (tempData && (tempData.temperature !== undefined || tempData.temp !== undefined)) {
+                    tempValue = (tempData.temperature || tempData.temp).toFixed(1);
+                    document.getElementById('outdoor-temp').textContent = tempValue + '°C';
+                    console.log('✅ Temperature updated:', tempValue + '°C');
+                } else {
+                    document.getElementById('outdoor-temp').textContent = 'No data';
+                    console.log('⚠️ No temperature data available');
+                }
+                
+                // Extract and display humidity
+                if (humidityData && (humidityData.humidity !== undefined)) {
+                    const humidityValue = Math.round(humidityData.humidity);
+                    document.getElementById('outdoor-humidity').textContent = humidityValue + '%';
+                    console.log('✅ Humidity updated:', humidityValue + '%');
+                } else {
+                    document.getElementById('outdoor-humidity').textContent = 'No data';
+                    console.log('⚠️ No humidity data available');
+                }
+                
+                // Update status to online if we got at least some data
+                if (tempValue !== null || humidityData) {
+                    document.getElementById('sensor-status').className = 'status-indicator status-online';
+                    console.log('✅ Homey sensors updated successfully');
+                } else {
+                    throw new Error('No sensor data received from Homey');
+                }
                 
                 return tempValue;
+                
             } catch (error) {
-                console.error('Error updating Homey sensors:', error);
+                console.error('❌ Error updating Homey sensors:', error.message);
                 document.getElementById('sensor-status').className = 'status-indicator status-offline';
+                
+                // Show error in sensor display
+                document.getElementById('outdoor-temp').textContent = 'Error';
+                document.getElementById('outdoor-humidity').textContent = 'Error';
+                
+                // Add error message to sensor card
+                const sensorGrid = document.querySelector('#sensors-card .sensor-grid');
+                let errorDiv = sensorGrid.querySelector('.error-message');
+                if (!errorDiv) {
+                    errorDiv = document.createElement('div');
+                    errorDiv.className = 'error-message';
+                    errorDiv.style.gridColumn = '1 / -1';
+                    sensorGrid.appendChild(errorDiv);
+                }
+                errorDiv.textContent = `Homey Error: ${error.message}`;
+                
                 return null;
             }
         }
 
+        function isHomeyConfigured() {
+            const config = CONFIG.homey;
+            
+            // Check if we have valid configuration (not placeholders)
+            if (!config || !config.devices || !config.devices.outdoorTempSensor) {
+                console.log('❌ Missing device configuration');
+                return false;
+            }
+            
+            if (config.devices.outdoorTempSensor.includes('YOUR_')) {
+                console.log('❌ Device ID not configured (contains placeholder)');
+                return false;
+            }
+            
+            // Check if we have valid authentication
+            const hasLocal = config.localUrl && config.bearerToken && 
+                           !config.localUrl.includes('YOUR_') && !config.bearerToken.includes('YOUR_');
+                           
+            const hasCloud = config.cloudUrl && config.accessToken && 
+                           !config.accessToken.includes('YOUR_');
+            
+            if (!hasLocal && !hasCloud) {
+                console.log('❌ No valid authentication configured');
+                return false;
+            }
+            
+            console.log('✅ Homey configuration valid:', {
+                hasLocal: hasLocal,
+                hasCloud: hasCloud,
+                tempSensor: config.devices.outdoorTempSensor
+            });
+            
+            return true;
+        }
+
         async function getHomeyDeviceData(deviceId) {
             if (!deviceId || deviceId.includes('YOUR_')) {
-                throw new Error('Device ID not configured');
+                throw new Error('Device ID not configured or invalid');
             }
 
+            console.log('🔍 Getting Homey device data for:', deviceId);
+
             try {
+                // Try local API first if available
                 if (CONFIG.homey.localUrl && CONFIG.homey.bearerToken && 
                     !CONFIG.homey.localUrl.includes('YOUR_') && !CONFIG.homey.bearerToken.includes('YOUR_')) {
+                    console.log('🏠 Trying Homey Local API...');
                     return await getHomeyLocalDeviceData(deviceId);
                 }
                 
+                // Fall back to cloud API
                 if (CONFIG.homey.accessToken && !CONFIG.homey.accessToken.includes('YOUR_')) {
+                    console.log('☁️ Trying Homey Cloud API...');
                     return await getHomeyCloudDeviceData(deviceId);
                 }
                 
                 throw new Error('No valid Homey configuration found');
+                
             } catch (error) {
-                console.error(`Error getting Homey device data for ${deviceId}:`, error);
+                console.error(`❌ Error getting device data for ${deviceId}:`, error);
                 throw error;
             }
         }
 
         async function getHomeyLocalDeviceData(deviceId) {
-            const response = await fetch(`${CONFIG.homey.localUrl}/api/devices/${deviceId}`, {
-                headers: {
-                    'Authorization': `Bearer ${CONFIG.homey.bearerToken}`,
-                    'Content-Type': 'application/json'
+            console.log('📡 Fetching from Homey Local API:', CONFIG.homey.localUrl);
+            
+            try {
+                const response = await fetch(`${CONFIG.homey.localUrl}/api/devices/${deviceId}`, {
+                    method: 'GET',
+                    headers: {
+                        'Authorization': `Bearer ${CONFIG.homey.bearerToken}`,
+                        'Content-Type': 'application/json'
+                    },
+                    timeout: 10000 // 10 second timeout
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`Homey local API error: ${response.status} ${response.statusText}`);
                 }
-            });
-            
-            if (!response.ok) {
-                throw new Error(`Homey local API error: ${response.status}`);
+                
+                const device = await response.json();
+                console.log('✅ Local API response:', device);
+                
+                return extractSensorData(device);
+                
+            } catch (error) {
+                console.error('❌ Local API failed:', error.message);
+                throw new Error(`Local API failed: ${error.message}`);
             }
-            
-            const device = await response.json();
-            return extractSensorData(device);
         }
 
         async function getHomeyCloudDeviceData(deviceId) {
-            const response = await fetch(`${CONFIG.homey.cloudUrl}/device/${deviceId}`, {
-                headers: {
-                    'Authorization': `Bearer ${CONFIG.homey.accessToken}`,
-                    'Content-Type': 'application/json'
+            console.log('☁️ Fetching from Homey Cloud API');
+            
+            try {
+                const response = await fetch(`${CONFIG.homey.cloudUrl}/device/${deviceId}`, {
+                    method: 'GET',
+                    headers: {
+                        'Authorization': `Bearer ${CONFIG.homey.accessToken}`,
+                        'Content-Type': 'application/json'
+                    },
+                    timeout: 15000 // 15 second timeout for cloud
+                });
+                
+                if (!response.ok) {
+                    if (response.status === 401) {
+                        throw new Error('Cloud API authentication failed - check access token');
+                    }
+                    throw new Error(`Homey cloud API error: ${response.status} ${response.statusText}`);
                 }
-            });
-            
-            if (!response.ok) {
-                throw new Error(`Homey cloud API error: ${response.status}`);
+                
+                const device = await response.json();
+                console.log('✅ Cloud API response:', device);
+                
+                return extractSensorData(device);
+                
+            } catch (error) {
+                console.error('❌ Cloud API failed:', error.message);
+                throw new Error(`Cloud API failed: ${error.message}`);
             }
-            
-            const device = await response.json();
-            return extractSensorData(device);
         }
 
         function extractSensorData(device) {
+            console.log('🔧 Extracting sensor data from device:', device);
+            
             const data = {};
             
+            // Handle different device response structures
             if (device.capabilitiesObj) {
-                if (device.capabilitiesObj['measure_temperature']) {
-                    data.temperature = device.capabilitiesObj['measure_temperature'].value;
+                // Standard Homey device structure
+                console.log('📊 Device capabilities:', Object.keys(device.capabilitiesObj));
+                
+                // Try different temperature capability names
+                const tempCapabilities = ['measure_temperature', 'temperature', 'temp'];
+                for (const cap of tempCapabilities) {
+                    if (device.capabilitiesObj[cap] && device.capabilitiesObj[cap].value !== undefined) {
+                        data.temperature = device.capabilitiesObj[cap].value;
+                        console.log(`✅ Found temperature in '${cap}':`, data.temperature);
+                        break;
+                    }
                 }
                 
-                if (device.capabilitiesObj['measure_humidity']) {
-                    data.humidity = device.capabilitiesObj['measure_humidity'].value;
+                // Try different humidity capability names
+                const humidityCapabilities = ['measure_humidity', 'humidity', 'hum'];
+                for (const cap of humidityCapabilities) {
+                    if (device.capabilitiesObj[cap] && device.capabilitiesObj[cap].value !== undefined) {
+                        data.humidity = device.capabilitiesObj[cap].value;
+                        console.log(`✅ Found humidity in '${cap}':`, data.humidity);
+                        break;
+                    }
                 }
-                
-                if (device.capabilitiesObj['temperature']) {
-                    data.temperature = device.capabilitiesObj['temperature'].value;
+            } else if (device.capabilities) {
+                // Alternative structure - direct capabilities
+                console.log('📊 Direct capabilities:', device.capabilities);
+                if (device.capabilities.temperature !== undefined) {
+                    data.temperature = device.capabilities.temperature;
                 }
-                
-                if (device.capabilitiesObj['humidity']) {
-                    data.humidity = device.capabilitiesObj['humidity'].value;
+                if (device.capabilities.humidity !== undefined) {
+                    data.humidity = device.capabilities.humidity;
                 }
             }
             
+            console.log('🎯 Extracted data:', data);
             return data;
         }
 
@@ -1870,10 +2035,10 @@
             document.querySelectorAll('.card').forEach(card => card.classList.add('loading'));
             
             try {
-                console.log('Starting REAL-TIME data refresh from all sources...');
+                console.log('🔄 Starting REAL-TIME data refresh from all sources...');
                 
                 const [outdoorTemp, hafjellTemps] = await Promise.all([
-                    updatePersonalSensors(),      // Homey outdoor sensors
+                    updatePersonalSensors(),      // Homey outdoor sensors (improved)
                     updateHafjellWeather()        // MET Norway API for Hafjell
                 ]);
                 
@@ -1889,14 +2054,14 @@
                 
                 if (outdoorTemp || hafjellTopTemp || hafjellBottomTemp) {
                     updateTempChart(outdoorTemp, hafjellTopTemp, hafjellBottomTemp);
-                    console.log('Chart updated with REAL data:', {outdoor: outdoorTemp, top: hafjellTopTemp, bottom: hafjellBottomTemp});
+                    console.log('✅ Chart updated with REAL data:', {outdoor: outdoorTemp, top: hafjellTopTemp, bottom: hafjellBottomTemp});
                 }
                 
                 updateTimestamp();
-                console.log('All REAL-TIME data refreshed successfully');
+                console.log('✅ All REAL-TIME data refreshed successfully');
                 
             } catch (error) {
-                console.error('Error during real-time refresh:', error);
+                console.error('❌ Error during real-time refresh:', error);
             } finally {
                 document.querySelectorAll('.card').forEach(card => card.classList.remove('loading'));
                 
@@ -1908,7 +2073,7 @@
         // ========== DASHBOARD INITIALIZATION ==========
 
         async function initDashboard() {
-            console.log('Initializing WK Snow Weather Dashboard with REAL-TIME data...');
+            console.log('🚀 Initializing WK Snow Weather Dashboard with REAL-TIME data...');
             
             updateTimestamp();
             initTempChart();
@@ -1917,53 +2082,108 @@
             
             // Auto-refresh every 5 minutes for real-time data
             setInterval(async () => {
-                console.log('Auto-refreshing REAL-TIME dashboard data...');
+                console.log('🔄 Auto-refreshing REAL-TIME dashboard data...');
                 await refreshAllData();
             }, 5 * 60 * 1000);
             
             setInterval(updateTimestamp, 60 * 1000);
             
-            console.log('WK Dashboard initialized successfully with 5-minute real-time auto-refresh');
+            console.log('✅ WK Dashboard initialized successfully with 5-minute real-time auto-refresh');
         }
     </script>
 
     <!-- 
-    ========== WK WEATHER DASHBOARD - REAL-TIME VERSION ==========
+    ========== WK WEATHER DASHBOARD - IMPROVED HOMEY INTEGRATION ==========
     
     🎯 CREDENTIALS:
     Username: WK
     Password: winter2025
     
     ✅ REAL-TIME DATA SOURCES:
-    1. Hafjell Top/Bottom Weather: MET Norway API with exact coordinates & elevations
-    2. YR.no Forecast: Official Norwegian weather forecast for Hafjell area  
-    3. Lift Status: Hafjell website scraping (with fallback simulation)
-    4. Homey Sensors: Configure your outdoor temperature & humidity sensors
-    5. Live Webcam: Vidsynexpressen camera feed
+    1. 🏠 Homey Sensors: IMPROVED - Now uses proper API calls (local/cloud) for remote access
+    2. 🏔️ Hafjell Weather: MET Norway API with exact coordinates & elevations
+    3. 📊 YR.no Forecast: Official Norwegian weather forecast for Hafjell area  
+    4. 🎿 Lift Status: Real-time from Hafjell website scraping (with smart fallback)
+    5. 📷 Live Webcam: Vidsynexpressen camera feed with auto-refresh
     
-    🚀 DEPLOYMENT:
-    1. Save this file as "wk-weather-dashboard.html" 
-    2. Deploy to Vercel, Netlify, or any hosting service
-    3. Access with credentials: WK / winter2025
+    🔧 HOMEY CONFIGURATION SETUP:
     
-    📝 SECURE DEPLOYMENT:
-    1. Create .gitignore with: config.js
-    2. Create config.js (NOT committed) with real Homey credentials:
+    METHOD 1: External Config File (Recommended for Security)
+    1. Create config.js (NOT committed to GitHub):
+       ```javascript
        window.HOMEY_CONFIG = {
-           localUrl: 'http://192.168.1.100',
-           bearerToken: 'your-real-token',
-           // ... your real credentials
+           // Option A: Local Homey API (faster, requires local network access)
+           localUrl: 'http://192.168.1.100',  // Replace with your Homey's IP
+           bearerToken: 'your-local-bearer-token',  // From Homey Developer Tools
+           
+           // Option B: Cloud Homey API (works anywhere, requires cloud access)
+           cloudUrl: 'https://api.athom.com',
+           accessToken: 'your-cloud-access-token',  // From Homey Developer Account
+           
+           devices: {
+               // Your outdoor temperature sensor device ID
+               outdoorTempSensor: '12345678-1234-1234-1234-123456789abc',
+               // Optional: separate humidity sensor (if different from temp sensor)
+               outdoorHumiditySensor: '87654321-4321-4321-4321-cba987654321'
+           }
        };
-    3. This HTML file can be public on GitHub (placeholders only)
-    4. Deploy both files together to hosting service
-    5. Your credentials stay private, code stays public! 🔒
+       ```
+    2. Deploy both files together to your hosting service
+    3. Your credentials stay private, code can be public on GitHub! 🔒
     
-    🔒 GITHUB SECURITY:
-    This file is safe for GitHub - contains only placeholder credentials.
-    Real credentials loaded from external config.js file (not committed).
-    See deployment guide for secure setup instructions.
+    METHOD 2: Direct Edit (Less Secure)
+    Replace the placeholder values in CONFIG.homey section above with your real values.
     
-    This dashboard provides REAL weather data from Norwegian meteorological services!
-    -->
-</body>
-</html>
+    📋 HOW TO GET HOMEY CREDENTIALS:
+    
+    🏠 LOCAL API SETUP (Recommended):
+    1. Open Homey Developer Tools: http://YOUR_HOMEY_IP/manager/devkit/
+    2. Go to "API" section
+    3. Create new Bearer Token
+    4. Copy token and Homey's local IP address
+    5. Use these in localUrl and bearerToken config
+    
+    ☁️ CLOUD API SETUP (Alternative):
+    1. Visit: https://developer.athom.com/
+    2. Create developer account and login
+    3. Create new app/integration
+    4. Get OAuth2 access token
+    5. Use in cloudUrl and accessToken config
+    
+    🔍 HOW TO FIND DEVICE IDS:
+    1. In Homey app, go to your outdoor sensor
+    2. Click settings (gear icon)
+    3. Advanced settings
+    4. Copy the Device ID
+    5. Use this ID in outdoorTempSensor config
+    
+    🌡️ SUPPORTED SENSOR TYPES:
+    - Temperature: measure_temperature, temperature, temp
+    - Humidity: measure_humidity, humidity, hum
+    - Multi-sensors: One device with both capabilities
+    - Separate sensors: Different devices for temperature and humidity
+    
+    🚀 DEPLOYMENT OPTIONS:
+    - Vercel: Free hosting with GitHub integration
+    - Netlify: Free hosting with easy deployment
+    - GitHub Pages: Free but static (config.js won't work)
+    - Self-hosted: Any web server with HTTPS
+    
+    ⚡ NEW FEATURES:
+    ✅ Remote Homey API access (works from anywhere)
+    ✅ Smart fallback from local to cloud API
+    ✅ Proper error handling with user feedback
+    ✅ No more fake/simulated data
+    ✅ Real device capability detection
+    ✅ Support for various sensor types
+    ✅ Detailed logging for troubleshooting
+    ✅ Secure credential management
+    
+    🔧 TROUBLESHOOTING:
+    - Check browser console for detailed error messages
+    - Verify Homey IP address is accessible from dashboard location
+    - Ensure Bearer Token has proper permissions
+    - Test device IDs in Homey Developer Tools first
+    - Check if devices are online in Homey app
+    
+    This dashboard now properly integrates with Homey for real outdoor sensor data!
