@@ -1,4 +1,70 @@
-<!DOCTYPE html>
+function initTempChart() {
+            const ctx = document.getElementById('tempChart').getContext('2d');
+            
+            tempChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: temperatureHistory.labels,
+                    datasets: [{
+                        label: 'Outdoor (Homey)',
+                        data: temperatureHistory.outdoor,
+                        borderColor: 'rgba(52, 152, 219, 0.8)',
+                        backgroundColor: 'rgba(52, 152, 219, 0.1)',
+                        borderWidth: 2,
+                        fill: false,
+                        tension: 0.4
+                    }, {
+                        label: 'Hafjell Top (1059m)',
+                        data: temperatureHistory.hafjellTop,
+                        borderColor: 'rgba(231, 76, 60, 0.8)',
+                        backgroundColor: 'rgba(231, 76, 60, 0.1)',
+                        borderWidth: 2,
+                        fill: false,
+                        tension: 0.4
+                    }, {
+                        label: 'Hafjell Bottom (195m)',
+                        data: temperatureHistory.hafjellBottom,
+                        borderColor: 'rgba(46, 204, 113, 0.8)',
+                        backgroundColor: 'rgba(46, 204, 113, 0.1)',
+                        borderWidth: 2,
+                        fill: false,
+                        tension: 0.4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            display: true,
+                            position: 'top',
+                            labels: {
+                                color: 'white',
+                                font: { size: 10 },
+                                usePointStyle: true,
+                                pointStyle: 'circle'
+                            }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            ticks: {
+                                color: 'rgba(255, 255, 255, 0.8)',
+                                font: { size: 10 }
+                            },
+                            grid: { color: 'rgba(255, 255, 255, 0.2)' }
+                        },
+                        y: {
+                            ticks: {
+                                color: 'rgba(255, 255, 255, 0.8)',
+                                font: { size: 10 },
+                                callback: function(value) {
+                                    return value + '°C';
+                                }
+                            },
+                            grid: { color: 'rgba(255, 255, 255, 0.2)' }
+                        }
+                    },<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -829,7 +895,7 @@
             <div class="card" id="hafjell-card">
                 <div class="card-header">
                     <div class="card-title">
-                        Hafjell Stations (MET Norway)
+                        Hafjell Stations
                         <span class="status-indicator status-offline" id="hafjell-status"></span>
                     </div>
                 </div>
@@ -942,9 +1008,6 @@
         </div>
 
         <button class="refresh-btn" onclick="refreshAllData()">🔄 Refresh</button>
-        
-        <!-- Swix Color Test Button (for debugging) -->
-        <button class="refresh-btn" onclick="testSwixColors(); applyAllSwixColors();" style="bottom: 50px; background: rgba(138, 43, 226, 0.8); font-size: 0.6rem;">🎨 Test Swix Colors</button>
     </div>
 
     <script>
@@ -1084,22 +1147,6 @@
                 console.error(`❌ No Swix class determined for temperature ${temp}°C`);
                 return false;
             }
-        }
-
-        // Manual test function to verify Swix colors are working
-        function testSwixColors() {
-            console.log('🧪 Testing Swix color system...');
-            
-            // Test with different temperatures
-            const testTemps = [5, 2, -2, -6, -10, -15, -20];
-            const testElements = ['outdoor-temp', 'top-temp', 'bottom-temp'];
-            
-            testElements.forEach((elementId, index) => {
-                const testTemp = testTemps[index % testTemps.length];
-                console.log(`🧪 Testing ${elementId} with ${testTemp}°C`);
-                const success = applySwixColorToElement(elementId, testTemp);
-                console.log(`🧪 Test result for ${elementId}: ${success ? 'SUCCESS' : 'FAILED'}`);
-            });
         }
 
         // Comprehensive function to apply all Swix colors after data refresh
@@ -2419,7 +2466,7 @@
             
             await refreshAllData();
             
-            // Auto-refresh every 5 minutes for real-time data
+            // Auto-refresh every 5 minutes for real-time data (reverted to working version)
             setInterval(async () => {
                 console.log('Auto-refreshing REAL-TIME dashboard data with official Swix colors...');
                 await refreshAllData();
@@ -2465,6 +2512,14 @@
     🔵 Blue: -6°C to -12°C (21°F to 10°F) - Cold conditions - Use blue wax
     🟢 Green: -10°C to -18°C (14°F to 0°F) - Very cold - Use green/turquoise wax
     ⚪ White: Below -18°C (Below 0°F) - Polar conditions - Use polar wax
+    
+    🔧 CHANGES MADE:
+    ✅ REVERTED: 5-minute data gathering system (removed problematic 15-minute timer)
+    ✅ FIXED: 3-hour temperature trend chart with proper timeline
+    ✅ UPDATED: Chart shows 36 data points (5-minute intervals over 3 hours)
+    ✅ IMPROVED: Time axis ends at next rounded hour for better visualization
+    ✅ REMOVED: Color test button (no longer needed)
+    ✅ CLEANED: Hafjell Stations title (removed "MET Norway")
     
     Color coding is applied AFTER data retrieval to ensure it doesn't interfere with data gathering!
     Based on official Swix cross-country ski wax temperature ranges for optimal performance.
