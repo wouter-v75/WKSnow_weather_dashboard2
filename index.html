@@ -363,6 +363,7 @@
             color: white;
             margin-bottom: 2px;
             text-shadow: 2px 2px 6px rgba(0,0,0,0.9);
+            transition: color 0.3s ease;
         }
 
         .sensor-label {
@@ -390,6 +391,7 @@
             font-weight: bold;
             color: white;
             text-shadow: 2px 2px 6px rgba(0,0,0,0.9);
+            transition: color 0.3s ease;
         }
 
         .weather-desc {
@@ -463,6 +465,7 @@
             text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
             width: 30px;
             margin-right: 8px;
+            transition: color 0.3s ease;
         }
 
         .forecast-wind {
@@ -637,6 +640,37 @@
             border-radius: 8px;
             margin: 4px 0;
             text-shadow: 1px 1px 2px rgba(0,0,0,0.6);
+        }
+
+        /* ========== SWIX TEMPERATURE COLOR CODING ========== */
+        .swix-temp-hot {
+            color: #FF0000 !important; /* Red: +0°C and warmer */
+            text-shadow: 2px 2px 6px rgba(0,0,0,0.9), 0 0 15px rgba(255, 0, 0, 0.4) !important;
+        }
+
+        .swix-temp-warm {
+            color: #FF8C00 !important; /* Orange: -1°C to -4°C */
+            text-shadow: 2px 2px 6px rgba(0,0,0,0.9), 0 0 15px rgba(255, 140, 0, 0.4) !important;
+        }
+
+        .swix-temp-mild {
+            color: #FFD700 !important; /* Yellow: -5°C to -8°C */
+            text-shadow: 2px 2px 6px rgba(0,0,0,0.9), 0 0 15px rgba(255, 215, 0, 0.4) !important;
+        }
+
+        .swix-temp-cool {
+            color: #00FF00 !important; /* Green: -9°C to -14°C */
+            text-shadow: 2px 2px 6px rgba(0,0,0,0.9), 0 0 15px rgba(0, 255, 0, 0.4) !important;
+        }
+
+        .swix-temp-cold {
+            color: #0000FF !important; /* Blue: -15°C to -20°C */
+            text-shadow: 2px 2px 6px rgba(0,0,0,0.9), 0 0 15px rgba(0, 0, 255, 0.4) !important;
+        }
+
+        .swix-temp-freezing {
+            color: #800080 !important; /* Purple: -21°C and colder */
+            text-shadow: 2px 2px 6px rgba(0,0,0,0.9), 0 0 15px rgba(128, 0, 128, 0.4) !important;
         }
 
         @media (max-width: 1024px) and (orientation: landscape) {
@@ -975,6 +1009,55 @@
             'default': '🌤️'
         };
 
+        // ========== SWIX TEMPERATURE COLOR CODING ==========
+        
+        function getSwixColorClass(tempCelsius) {
+            if (tempCelsius === null || tempCelsius === undefined) {
+                return ''; // No color for invalid temperature
+            }
+            
+            const temp = parseFloat(tempCelsius);
+            
+            if (temp >= 0) return 'swix-temp-hot';          // Red: +0°C and warmer
+            if (temp >= -4) return 'swix-temp-warm';        // Orange: -1°C to -4°C  
+            if (temp >= -8) return 'swix-temp-mild';        // Yellow: -5°C to -8°C
+            if (temp >= -14) return 'swix-temp-cool';       // Green: -9°C to -14°C
+            if (temp >= -20) return 'swix-temp-cold';       // Blue: -15°C to -20°C
+            return 'swix-temp-freezing';                    // Purple: -21°C and colder
+        }
+
+        function applySwixColorToElement(elementId, temperature) {
+            const element = document.getElementById(elementId);
+            if (element && temperature !== null && temperature !== undefined) {
+                // Remove any existing Swix color classes
+                element.className = element.className.replace(/swix-temp-\w+/g, '').trim();
+                
+                // Add the appropriate Swix color class
+                const swixClass = getSwixColorClass(temperature);
+                if (swixClass) {
+                    element.classList.add(swixClass);
+                    console.log(`🎨 Applied Swix color ${swixClass} to ${elementId} for temperature ${temperature}°C`);
+                }
+            }
+        }
+
+        function applySwixColorToElements(className, temperatures) {
+            const elements = document.querySelectorAll(`.${className}`);
+            elements.forEach((element, index) => {
+                if (temperatures[index] !== null && temperatures[index] !== undefined) {
+                    // Remove any existing Swix color classes
+                    element.className = element.className.replace(/swix-temp-\w+/g, '').trim();
+                    
+                    // Add the appropriate Swix color class
+                    const swixClass = getSwixColorClass(temperatures[index]);
+                    if (swixClass) {
+                        element.classList.add(swixClass);
+                        console.log(`🎨 Applied Swix color ${swixClass} to forecast temp ${temperatures[index]}°C`);
+                    }
+                }
+            });
+        }
+
         // ========== AUTHENTICATION LOGIC ==========
         
         document.addEventListener('DOMContentLoaded', function() {
@@ -1178,6 +1261,9 @@
                     tempValue = (tempData.temperature || tempData.temp).toFixed(1);
                     document.getElementById('outdoor-temp').textContent = tempValue + '°C';
                     console.log('✅ Temperature updated:', tempValue + '°C');
+                    
+                    // 🎨 Apply Swix color coding AFTER data retrieval
+                    applySwixColorToElement('outdoor-temp', tempValue);
                 } else {
                     document.getElementById('outdoor-temp').textContent = 'No data';
                     console.log('⚠️ No temperature data available');
@@ -1421,6 +1507,10 @@
                 
                 document.getElementById('hafjell-status').className = 'status-indicator status-online';
                 console.log('Hafjell weather updated successfully with REAL website data');
+                
+                // 🎨 Apply Swix color coding AFTER data retrieval
+                applySwixColorToElement('top-temp', hafjellData.top.temperature);
+                applySwixColorToElement('bottom-temp', hafjellData.bottom.temperature);
                 
                 return {
                     top: parseFloat(hafjellData.top.temperature),
@@ -1877,6 +1967,9 @@
                 return;
             }
             
+            // Collect temperatures for Swix color coding
+            const forecastTemps = [];
+            
             todayForecasts.forEach(item => {
                 const time = new Date(item.time);
                 const temp = Math.round(item.data.instant.details.air_temperature);
@@ -1899,7 +1992,13 @@
                     <div class="forecast-desc">${getWeatherDescription(symbol)}</div>
                 `;
                 forecastContent.appendChild(forecastItem);
+                
+                // Store temperature for Swix color coding
+                forecastTemps.push(temp);
             });
+            
+            // 🎨 Apply Swix color coding to forecast temperatures AFTER display
+            applySwixColorToElements('forecast-temp', forecastTemps);
         }
 
         function displayTomorrowForecast(data) {
@@ -1921,6 +2020,9 @@
                 tomorrowContent.innerHTML = '<div style="color: rgba(255,255,255,0.7); text-align: center;">No forecasts available for tomorrow</div>';
                 return;
             }
+            
+            // Collect temperatures for Swix color coding
+            const tomorrowTemps = [];
             
             tomorrowForecasts.forEach(item => {
                 const time = new Date(item.time);
@@ -1944,7 +2046,28 @@
                     <div class="forecast-desc">${getWeatherDescription(symbol)}</div>
                 `;
                 tomorrowContent.appendChild(forecastItem);
+                
+                // Store temperature for Swix color coding
+                tomorrowTemps.push(temp);
             });
+            
+            // 🎨 Apply Swix color coding to tomorrow forecast temperatures AFTER display
+            setTimeout(() => {
+                const tomorrowTempElements = document.querySelectorAll('#tomorrow-content .forecast-temp');
+                tomorrowTempElements.forEach((element, index) => {
+                    if (tomorrowTemps[index] !== null && tomorrowTemps[index] !== undefined) {
+                        // Remove any existing Swix color classes
+                        element.className = element.className.replace(/swix-temp-\w+/g, '').trim();
+                        
+                        // Add the appropriate Swix color class
+                        const swixClass = getSwixColorClass(tomorrowTemps[index]);
+                        if (swixClass) {
+                            element.classList.add(swixClass);
+                            console.log(`🎨 Applied Swix color ${swixClass} to tomorrow forecast temp ${tomorrowTemps[index]}°C`);
+                        }
+                    }
+                });
+            }, 100);
         }
 
         // ========== WEBCAM ==========
@@ -2038,12 +2161,12 @@
                 console.log('Starting REAL-TIME data refresh from all sources...');
                 
                 const [outdoorTemp, hafjellTemps] = await Promise.all([
-                    updatePersonalSensors(),      // Homey outdoor sensors (IMPROVED)
-                    updateHafjellWeather()        // Hafjell website scraping (UNCHANGED)
+                    updatePersonalSensors(),      // Homey outdoor sensors (IMPROVED + SWIX COLORS)
+                    updateHafjellWeather()        // Hafjell website scraping (UNCHANGED + SWIX COLORS)
                 ]);
                 
                 await Promise.all([
-                    updateForecast(),             // YR.no forecast API (UNCHANGED)
+                    updateForecast(),             // YR.no forecast API (UNCHANGED + SWIX COLORS)
                     updateLiftStatus()            // Hafjell lift status (UNCHANGED)
                 ]);
                 
@@ -2058,7 +2181,7 @@
                 }
                 
                 updateTimestamp();
-                console.log('All REAL-TIME data refreshed successfully');
+                console.log('All REAL-TIME data refreshed successfully with Swix color coding applied');
                 
             } catch (error) {
                 console.error('Error during real-time refresh:', error);
@@ -2073,7 +2196,7 @@
         // ========== DASHBOARD INITIALIZATION ==========
 
         async function initDashboard() {
-            console.log('Initializing WK Snow Weather Dashboard with REAL-TIME data...');
+            console.log('Initializing WK Snow Weather Dashboard with REAL-TIME data and Swix color coding...');
             
             updateTimestamp();
             initTempChart();
@@ -2082,39 +2205,46 @@
             
             // Auto-refresh every 5 minutes for real-time data
             setInterval(async () => {
-                console.log('Auto-refreshing REAL-TIME dashboard data...');
+                console.log('Auto-refreshing REAL-TIME dashboard data with Swix colors...');
                 await refreshAllData();
             }, 5 * 60 * 1000);
             
             setInterval(updateTimestamp, 60 * 1000);
             
-            console.log('WK Dashboard initialized successfully with 5-minute real-time auto-refresh');
+            console.log('WK Dashboard initialized successfully with 5-minute real-time auto-refresh and Swix color coding');
         }
     </script>
 
     <!-- 
-    ========== WK WEATHER DASHBOARD - WORKING VERSION ==========
+    ========== WK WEATHER DASHBOARD - WITH SWIX COLOR CODING ==========
     
     🎯 CREDENTIALS:
     Username: WK
     Password: winter2025
     
     ✅ REAL-TIME DATA SOURCES:
-    1. 🏠 Homey Sensors: ⭐ IMPROVED - Real API integration for remote access
-    2. 🏔️ Hafjell Weather: ✅ WORKING - Website scraping with HTML parsing
-    3. 📊 YR.no Forecast: ✅ WORKING - Official Norwegian weather forecast API  
+    1. 🏠 Homey Sensors: ⭐ IMPROVED - Real API integration for remote access + SWIX COLORS
+    2. 🏔️ Hafjell Weather: ✅ WORKING - Website scraping with HTML parsing + SWIX COLORS
+    3. 📊 YR.no Forecast: ✅ WORKING - Official Norwegian weather forecast API + SWIX COLORS
     4. 🎿 Lift Status: ✅ WORKING - Real-time from Hafjell website scraping
     5. 📷 Live Webcam: ✅ WORKING - Vidsynexpressen camera feed with auto-refresh
     
-    🔧 CHANGES MADE:
-    ✅ IMPROVED: Homey outdoor sensors - Real API integration, no more fake data
-    ✅ UNCHANGED: Hafjell weather stations - Original website scraping preserved  
-    ✅ UNCHANGED: YR.no forecast - Original API calls preserved
-    ✅ UNCHANGED: Lift status - Original website scraping preserved
-    ✅ UNCHANGED: Live webcam - Original functionality preserved
-    ✅ UNCHANGED: Temperature chart - Original functionality preserved
+    🎨 NEW: SWIX TEMPERATURE COLOR CODING APPLIED TO:
+    ✅ Outdoor sensor temperature (Homey)
+    ✅ Hafjell top station temperature 
+    ✅ Hafjell bottom station temperature
+    ✅ YR.no today's forecast temperatures
+    ✅ YR.no tomorrow's forecast temperatures
     
-    This dashboard provides REAL weather data from Norwegian meteorological services!
+    🌈 SWIX COLOR SCALE:
+    🔴 Red: +0°C and warmer (Hot)
+    🟠 Orange: -1°C to -4°C (Warm) 
+    🟡 Yellow: -5°C to -8°C (Mild)
+    🟢 Green: -9°C to -14°C (Cool)
+    🔵 Blue: -15°C to -20°C (Cold)
+    🟣 Purple: -21°C and colder (Freezing)
+    
+    Color coding is applied AFTER data retrieval to ensure it doesn't interfere with data gathering!
     -->
 </body>
 </html>
