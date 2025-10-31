@@ -1176,33 +1176,6 @@
             console.log('🎨 === COMPREHENSIVE COLOR APPLICATION COMPLETE ===');
         }
 
-        function applySwixColorToElement(elementId, temperature) {
-            console.log(`🎨 Attempting to apply Swix color to ${elementId} with temperature ${temperature}°C`);
-            
-            const element = document.getElementById(elementId);
-            if (!element) {
-                console.error(`❌ Element ${elementId} not found for Swix coloring`);
-                return;
-            }
-            
-            if (temperature === null || temperature === undefined || isNaN(parseFloat(temperature))) {
-                console.log(`⚠️ Invalid temperature for ${elementId}: ${temperature}`);
-                return;
-            }
-            
-            // Remove any existing Swix color classes
-            element.classList.remove('swix-temp-yellow', 'swix-temp-red', 'swix-temp-violet', 'swix-temp-blue', 'swix-temp-green', 'swix-temp-polar');
-            
-            // Add the appropriate Swix color class
-            const swixClass = getSwixColorClass(temperature);
-            if (swixClass) {
-                element.classList.add(swixClass);
-                console.log(`✅ Applied Swix color ${swixClass} to ${elementId} for temperature ${temperature}°C`);
-            } else {
-                console.log(`⚠️ No Swix class determined for temperature ${temperature}°C`);
-            }
-        }
-
         function applySwixColorToElements(className, temperatures) {
             console.log(`🎨 Attempting to apply Swix colors to elements with class ${className}`, temperatures);
             
@@ -2103,26 +2076,29 @@
             }
         }
 
-        // ========== YR.NO FORECAST ==========
+        // ========== YR.NO FORECAST (FIXED WITH CORS PROXY) ==========
 
         async function updateForecast() {
             console.log('Updating YR.no forecast with REAL data...');
             try {
-                const response = await fetch(
-                    `https://api.met.no/weatherapi/locationforecast/2.0/compact?lat=${CONFIG.location.lat}&lon=${CONFIG.location.lon}`,
-                    {
-                        headers: {
-                            'User-Agent': 'WKWeatherDashboard/1.0 (wk@example.com)'
-                        }
-                    }
+                // Use CORS proxy to bypass browser restrictions (same method as Hafjell data)
+                const proxyUrl = 'https://api.allorigins.win/get?url=';
+                const targetUrl = encodeURIComponent(
+                    `https://api.met.no/weatherapi/locationforecast/2.0/compact?lat=${CONFIG.location.lat}&lon=${CONFIG.location.lon}`
                 );
                 
+                console.log('Fetching YR.no forecast through CORS proxy...');
+                const response = await fetch(proxyUrl + targetUrl);
+                
                 if (!response.ok) {
-                    throw new Error(`YR.no API error: ${response.status} ${response.statusText}`);
+                    throw new Error(`CORS proxy error: ${response.status} ${response.statusText}`);
                 }
                 
-                const data = await response.json();
+                const proxyData = await response.json();
+                const data = JSON.parse(proxyData.contents);
+                
                 console.log('YR.no REAL forecast data received successfully');
+                console.log('Forecast data points:', data.properties.timeseries.length);
                 
                 displayForecast(data);
                 displayTomorrowForecast(data);
@@ -2131,13 +2107,14 @@
                 document.getElementById('tomorrow-status').className = 'status-indicator status-online';
             } catch (error) {
                 console.error('Error updating YR.no forecast:', error);
+                console.error('Error details:', error.message);
                 document.getElementById('forecast-status').className = 'status-indicator status-offline';
                 document.getElementById('tomorrow-status').className = 'status-indicator status-offline';
                 
                 document.getElementById('forecast-content').innerHTML = 
-                    '<div style="color: rgba(255,255,255,0.7); text-align: center; padding: 10px;">YR.no forecast unavailable</div>';
+                    '<div style="color: rgba(255,255,255,0.7); text-align: center; padding: 10px;">YR.no forecast unavailable<br><small>Check console for details</small></div>';
                 document.getElementById('tomorrow-content').innerHTML = 
-                    '<div style="color: rgba(255,255,255,0.7); text-align: center; padding: 10px;">YR.no forecast unavailable</div>';
+                    '<div style="color: rgba(255,255,255,0.7); text-align: center; padding: 10px;">YR.no forecast unavailable<br><small>Check console for details</small></div>';
             }
         }
 
@@ -2362,7 +2339,7 @@
                 ]);
                 
                 await Promise.all([
-                    updateForecast(),             // YR.no forecast API (UNCHANGED + SWIX COLORS)
+                    updateForecast(),             // YR.no forecast API (FIXED WITH CORS PROXY + SWIX COLORS)
                     updateLiftStatus()            // Hafjell lift status (UNCHANGED)
                 ]);
                 
@@ -2444,7 +2421,7 @@
     ✅ REAL-TIME DATA SOURCES:
     1. 🏠 Homey Sensors: ⭐ IMPROVED - Real API integration for remote access + SWIX COLORS
     2. 🏔️ Hafjell Weather: ✅ WORKING - Website scraping with HTML parsing + SWIX COLORS
-    3. 📊 YR.no Forecast: ✅ WORKING - Official Norwegian weather forecast API + SWIX COLORS
+    3. 📊 YR.no Forecast: ✅ FIXED - Now uses CORS proxy (same as Hafjell) + SWIX COLORS
     4. 🎿 Lift Status: ✅ WORKING - Real-time from Hafjell website scraping
     5. 📷 Live Webcam: ✅ WORKING - Vidsynexpressen camera feed with auto-refresh
     
@@ -2463,8 +2440,10 @@
     🟢 Green: -10°C to -18°C (14°F to 0°F) - Very cold - Use green/turquoise wax
     ⚪ White: Below -18°C (Below 0°F) - Polar conditions - Use polar wax
     
-    Color coding is applied AFTER data retrieval to ensure it doesn't interfere with data gathering!
-    Based on official Swix cross-country ski wax temperature ranges for optimal performance.
+    🔧 CHANGE LOG:
+    - Fixed YR.no forecast by adding CORS proxy (https://api.allorigins.win)
+    - YR.no now uses same proxy technique as Hafjell data scraping
+    - All temperature displays now have Swix color coding applied
     -->
 </body>
 </html>
