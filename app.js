@@ -1,4 +1,4 @@
-// ========== WK WEATHER DASHBOARD - MAIN APPLICATION ==========
+// ========== WK WEATHER DASHBOARD - MAIN APPLICATION ========== 
 
 // Global configuration
 let CONFIG = {
