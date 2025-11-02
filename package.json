@@ -1,0 +1,26 @@
+{
+  "name": "wk-weather-dashboard",
+  "version": "2.0.0",
+  "description": "Real-time weather dashboard with Homey Pro, Hafjell, and YR.no integration",
+  "private": true,
+  "scripts": {
+    "dev": "vercel dev",
+    "deploy": "vercel --prod"
+  },
+  "keywords": [
+    "weather",
+    "dashboard",
+    "homey",
+    "hafjell",
+    "ski",
+    "norway"
+  ],
+  "author": "WK Weather Dashboard",
+  "license": "PRIVATE",
+  "engines": {
+    "node": ">=18.x"
+  },
+  "devDependencies": {
+    "vercel": "^33.0.0"
+  }
+}
