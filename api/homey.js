@@ -11,8 +11,7 @@
  * - HOMEY_DEVICE_ID_HUMIDITY (outdoor humidity sensor, optional)
  */
 
-// Use the same import as setup-homey.js
-const AthomCloudAPI = require('homey-api/lib/AthomCloudAPI');
+import AthomCloudAPI from 'homey-api/lib/AthomCloudAPI.js';
 
 // Cache for Homey API connection (persists across function invocations)
 let cachedHomeyApi = null;
@@ -29,20 +28,22 @@ async function getHomeyApi() {
   }
   
   console.log('Creating new Homey API connection...');
+  console.log('AthomCloudAPI type:', typeof AthomCloudAPI);
+  console.log('AthomCloudAPI:', AthomCloudAPI);
   
-  // Create Cloud API instance (same as setup-homey.js)
+  // Create Cloud API instance
   const cloudApi = new AthomCloudAPI({
     clientId: process.env.HOMEY_CLIENT_ID,
     clientSecret: process.env.HOMEY_CLIENT_SECRET,
   });
 
-  // Authenticate (same as setup-homey.js)
+  // Authenticate
   await cloudApi.authenticateWithUsernamePassword({
     username: process.env.HOMEY_USERNAME,
     password: process.env.HOMEY_PASSWORD,
   });
 
-  // Get user and first Homey (same as setup-homey.js)
+  // Get user and first Homey
   const user = await cloudApi.getAuthenticatedUser();
   const homeys = await user.getHomeys();
   
@@ -52,7 +53,7 @@ async function getHomeyApi() {
   
   const homey = homeys[0];
   
-  // Create session (same as setup-homey.js)
+  // Create session
   const homeyApi = await homey.authenticate();
   
   // Cache the connection
@@ -91,7 +92,7 @@ async function getDeviceData(homeyApi, deviceId) {
   }
 }
 
-module.exports = async function handler(req, res) {
+export default async function handler(req, res) {
   // Enable CORS
   res.setHeader('Access-Control-Allow-Credentials', true);
   res.setHeader('Access-Control-Allow-Origin', '*');
