@@ -18,9 +18,6 @@
     <!-- Chart.js CDN -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
     
-    <!-- Load external config if available (NOT committed to GitHub) -->
-    <script src="config.js" onerror="console.log('External config not found, using defaults')"></script>
-    
     <style>
         /* ========== LOGIN STYLES ========== */
         
@@ -644,37 +641,37 @@
 
         /* ========== SWIX TEMPERATURE COLOR CODING (OFFICIAL RANGES) ========== */
         .swix-temp-yellow {
-            color: #FFD700 !important; /* Yellow: 0°C to +10°C (32°F to 50°F) - Hot conditions */
+            color: #FFD700 !important;
             text-shadow: 2px 2px 6px rgba(0,0,0,0.9), 0 0 15px rgba(255, 215, 0, 0.6) !important;
             font-weight: bold !important;
         }
 
         .swix-temp-red {
-            color: #FF0000 !important; /* Red: -4°C to +4°C (25°F to 39°F) - Warm conditions */
+            color: #FF0000 !important;
             text-shadow: 2px 2px 6px rgba(0,0,0,0.9), 0 0 15px rgba(255, 0, 0, 0.6) !important;
             font-weight: bold !important;
         }
 
         .swix-temp-violet {
-            color: #8A2BE2 !important; /* Violet: -2°C to -8°C (28°F to 18°F) - Cool conditions */
+            color: #8A2BE2 !important;
             text-shadow: 2px 2px 6px rgba(0,0,0,0.9), 0 0 15px rgba(138, 43, 226, 0.6) !important;
             font-weight: bold !important;
         }
 
         .swix-temp-blue {
-            color: #0066FF !important; /* Blue: -6°C to -12°C (21°F to 10°F) - Cold conditions */
+            color: #0066FF !important;
             text-shadow: 2px 2px 6px rgba(0,0,0,0.9), 0 0 15px rgba(0, 102, 255, 0.6) !important;
             font-weight: bold !important;
         }
 
         .swix-temp-green {
-            color: #00FFAA !important; /* Green/Turquoise: -10°C to -18°C (14°F to 0°F) - Very cold */
+            color: #00FFAA !important;
             text-shadow: 2px 2px 6px rgba(0,0,0,0.9), 0 0 15px rgba(0, 255, 170, 0.6) !important;
             font-weight: bold !important;
         }
 
         .swix-temp-polar {
-            color: #FFFFFF !important; /* White: Below -18°C (Below 0°F) - Polar conditions */
+            color: #FFFFFF !important;
             text-shadow: 2px 2px 6px rgba(0,0,0,0.9), 0 0 15px rgba(255, 255, 255, 0.8) !important;
             font-weight: bold !important;
         }
@@ -948,35 +945,16 @@
         // ========== AUTHENTICATION CONFIGURATION ==========
         
         const AUTH_CONFIG = {
-            username: 'WK',              // 🎯 Your username
-            password: 'winter2025'       // 🎯 Your password
+            username: 'WK',
+            password: 'winter2025'
         };
 
         // ========== WEATHER DASHBOARD CONFIGURATION ==========
         
         const CONFIG = {
-            // Use external config if available, otherwise use placeholders for GitHub
-            homey: window.HOMEY_CONFIG || {
-                // Local Homey API (preferred for reliability)
-                localUrl: 'http://YOUR_HOMEY_IP',
-                bearerToken: 'YOUR_HOMEY_BEARER_TOKEN',
-                
-                // Cloud Homey API (works remotely)
-                cloudUrl: 'https://api.athom.com',
-                accessToken: 'YOUR_HOMEY_ACCESS_TOKEN',
-                
-                // Device configurations
-                devices: {
-                    // Main outdoor temperature sensor
-                    outdoorTempSensor: 'YOUR_OUTDOOR_SENSOR_DEVICE_ID',
-                    // Optional: separate humidity sensor (if different from temp sensor)
-                    outdoorHumiditySensor: 'YOUR_OUTDOOR_HUMIDITY_DEVICE_ID'
-                }
-            },
-            
             // Hafjell location coordinates (official)
             location: {
-                lat: 61.234381, // Hafjell Alpine Center
+                lat: 61.234381,
                 lon: 10.448835
             },
             
@@ -985,12 +963,12 @@
                 top: {
                     lat: 61.234381,
                     lon: 10.448835,
-                    elevation: 1059 // Top station elevation in meters
+                    elevation: 1059
                 },
                 bottom: {
                     lat: 61.234381, 
                     lon: 10.448835,
-                    elevation: 195 // Bottom station elevation in meters
+                    elevation: 195
                 }
             }
         };
@@ -1019,36 +997,35 @@
         
         function getSwixColorClass(tempCelsius) {
             if (tempCelsius === null || tempCelsius === undefined) {
-                return ''; // No color for invalid temperature
+                return '';
             }
             
             const temp = parseFloat(tempCelsius);
             console.log(`🌡️ Getting Swix color for temperature: ${temp}°C`);
             
-            // Official Swix wax temperature ranges based on kick wax and glide wax systems
             if (temp >= 0) {
                 console.log(`📍 Temperature ${temp}°C -> YELLOW (Hot conditions)`);
-                return 'swix-temp-yellow';       // Yellow: 0°C to +10°C (32°F to 50°F) - Hot conditions
+                return 'swix-temp-yellow';
             }
             if (temp >= -4) {
                 console.log(`📍 Temperature ${temp}°C -> RED (Warm conditions)`);
-                return 'swix-temp-red';         // Red: -4°C to +4°C (25°F to 39°F) - Warm conditions  
+                return 'swix-temp-red';
             }
             if (temp >= -8) {
                 console.log(`📍 Temperature ${temp}°C -> VIOLET (Cool conditions)`);
-                return 'swix-temp-violet';      // Violet: -2°C to -8°C (28°F to 18°F) - Cool conditions
+                return 'swix-temp-violet';
             }
             if (temp >= -12) {
                 console.log(`📍 Temperature ${temp}°C -> BLUE (Cold conditions)`);
-                return 'swix-temp-blue';       // Blue: -6°C to -12°C (21°F to 10°F) - Cold conditions
+                return 'swix-temp-blue';
             }
             if (temp >= -18) {
                 console.log(`📍 Temperature ${temp}°C -> GREEN (Very cold)`);
-                return 'swix-temp-green';      // Green/Turquoise: -10°C to -18°C (14°F to 0°F) - Very cold
+                return 'swix-temp-green';
             }
             
             console.log(`📍 Temperature ${temp}°C -> WHITE (Polar conditions)`);
-            return 'swix-temp-polar';                       // White: Below -18°C (Below 0°F) - Polar conditions
+            return 'swix-temp-polar';
         }
 
         function applySwixColorToElement(elementId, temperature) {
@@ -1066,11 +1043,9 @@
                 return false;
             }
             
-            // Remove any existing Swix color classes
             const swixClasses = ['swix-temp-yellow', 'swix-temp-red', 'swix-temp-violet', 'swix-temp-blue', 'swix-temp-green', 'swix-temp-polar'];
             swixClasses.forEach(cls => element.classList.remove(cls));
             
-            // Get and apply the appropriate Swix color class
             const swixClass = getSwixColorClass(temp);
             if (swixClass) {
                 element.classList.add(swixClass);
@@ -1083,27 +1058,9 @@
             }
         }
 
-        // Manual test function to verify Swix colors are working
-        function testSwixColors() {
-            console.log('🧪 Testing Swix color system...');
-            
-            // Test with different temperatures
-            const testTemps = [5, 2, -2, -6, -10, -15, -20];
-            const testElements = ['outdoor-temp', 'top-temp', 'bottom-temp'];
-            
-            testElements.forEach((elementId, index) => {
-                const testTemp = testTemps[index % testTemps.length];
-                console.log(`🧪 Testing ${elementId} with ${testTemp}°C`);
-                const success = applySwixColorToElement(elementId, testTemp);
-                console.log(`🧪 Test result for ${elementId}: ${success ? 'SUCCESS' : 'FAILED'}`);
-            });
-        }
-
-        // Comprehensive function to apply all Swix colors after data refresh
         function applyAllSwixColors() {
             console.log('🎨 === COMPREHENSIVE SWIX COLOR APPLICATION ===');
             
-            // Apply to outdoor sensor
             const outdoorTempElement = document.getElementById('outdoor-temp');
             if (outdoorTempElement && outdoorTempElement.textContent) {
                 const tempText = outdoorTempElement.textContent;
@@ -1119,7 +1076,6 @@
                 }
             }
             
-            // Apply to Hafjell top station
             const topTempElement = document.getElementById('top-temp');
             if (topTempElement && topTempElement.textContent) {
                 const tempText = topTempElement.textContent;
@@ -1133,7 +1089,6 @@
                 }
             }
             
-            // Apply to Hafjell bottom station  
             const bottomTempElement = document.getElementById('bottom-temp');
             if (bottomTempElement && bottomTempElement.textContent) {
                 const tempText = bottomTempElement.textContent;
@@ -1147,7 +1102,6 @@
                 }
             }
             
-            // Apply to all forecast temperatures
             const allForecastTemps = document.querySelectorAll('.forecast-temp');
             console.log(`🔍 Found ${allForecastTemps.length} forecast temperature elements`);
             
@@ -1159,11 +1113,9 @@
                         const temp = parseFloat(tempMatch[0]);
                         console.log(`🌡️ Forecast ${index}: ${temp}°C`);
                         
-                        // Remove existing classes
                         const swixClasses = ['swix-temp-yellow', 'swix-temp-red', 'swix-temp-violet', 'swix-temp-blue', 'swix-temp-green', 'swix-temp-polar'];
                         swixClasses.forEach(cls => element.classList.remove(cls));
                         
-                        // Apply new class
                         const swixClass = getSwixColorClass(temp);
                         if (swixClass) {
                             element.classList.add(swixClass);
@@ -1185,10 +1137,8 @@
             elements.forEach((element, index) => {
                 const temp = temperatures[index];
                 if (temp !== null && temp !== undefined && !isNaN(parseFloat(temp))) {
-                    // Remove any existing Swix color classes
                     element.classList.remove('swix-temp-yellow', 'swix-temp-red', 'swix-temp-violet', 'swix-temp-blue', 'swix-temp-green', 'swix-temp-polar');
                     
-                    // Add the appropriate Swix color class
                     const swixClass = getSwixColorClass(temp);
                     if (swixClass) {
                         element.classList.add(swixClass);
@@ -1232,7 +1182,6 @@
             document.getElementById('dashboardContainer').style.display = 'block';
             document.body.className = 'dashboard-mode';
             
-            // Initialize dashboard
             setTimeout(() => {
                 initDashboard();
             }, 100);
@@ -1360,57 +1309,39 @@
                 <small style="opacity: 0.7;">Auto-refresh: ${nextRefresh.toLocaleTimeString('en-NO', {hour: '2-digit', minute: '2-digit'})}</small>`;
         }
 
-        // ========== IMPROVED HOMEY OUTDOOR SENSORS ==========
+        // ========== HOMEY OUTDOOR SENSORS (VIA VERCEL API) ==========
 
         async function updatePersonalSensors() {
-            console.log('🏠 Updating Homey outdoor sensors...');
+            console.log('🏠 Updating Homey outdoor sensors via Vercel API...');
             
-            // Clear previous content
             document.getElementById('outdoor-temp').textContent = '--°C';
             document.getElementById('outdoor-humidity').textContent = '--%';
             document.getElementById('sensor-status').className = 'status-indicator status-offline';
             
             try {
-                // Check if Homey is configured
-                if (!isHomeyConfigured()) {
-                    throw new Error('Homey not configured - please set up your Homey credentials');
+                console.log('📡 Fetching data from Vercel serverless function...');
+                
+                const response = await fetch('/api/homey');
+                
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.message || `API error: ${response.status}`);
                 }
                 
-                console.log('📡 Fetching data from configured Homey API...');
+                const data = await response.json();
+                console.log('✅ Received data from Homey API:', data);
                 
-                // Get temperature data
-                let tempData = null;
-                let humidityData = null;
-                
-                if (CONFIG.homey.devices.outdoorTempSensor) {
-                    console.log('🌡️ Getting temperature from device:', CONFIG.homey.devices.outdoorTempSensor);
-                    tempData = await getHomeyDeviceData(CONFIG.homey.devices.outdoorTempSensor);
-                }
-                
-                // Get humidity data (may be from same sensor or different one)
-                const humidityDeviceId = CONFIG.homey.devices.outdoorHumiditySensor || CONFIG.homey.devices.outdoorTempSensor;
-                if (humidityDeviceId && humidityDeviceId !== CONFIG.homey.devices.outdoorTempSensor) {
-                    console.log('💧 Getting humidity from separate device:', humidityDeviceId);
-                    humidityData = await getHomeyDeviceData(humidityDeviceId);
-                } else if (tempData) {
-                    console.log('💧 Using humidity from temperature sensor');
-                    humidityData = tempData;
-                }
-                
-                // Extract and display temperature
                 let tempValue = null;
-                if (tempData && (tempData.temperature !== undefined || tempData.temp !== undefined)) {
-                    tempValue = (tempData.temperature || tempData.temp).toFixed(1);
+                if (data.temperature !== undefined && data.temperature !== null) {
+                    tempValue = parseFloat(data.temperature).toFixed(1);
                     document.getElementById('outdoor-temp').textContent = tempValue + '°C';
                     console.log('✅ Temperature updated:', tempValue + '°C');
                     
-                    // 🎨 Apply Swix color coding AFTER data retrieval - with delay to ensure DOM is updated
                     setTimeout(() => {
                         console.log('🎨 Applying Swix color to outdoor sensor...');
                         applySwixColorToElement('outdoor-temp', tempValue);
                     }, 50);
                     
-                    // Additional backup color application
                     setTimeout(() => {
                         applySwixColorToElement('outdoor-temp', tempValue);
                     }, 500);
@@ -1419,9 +1350,8 @@
                     console.log('⚠️ No temperature data available');
                 }
                 
-                // Extract and display humidity
-                if (humidityData && (humidityData.humidity !== undefined)) {
-                    const humidityValue = Math.round(humidityData.humidity);
+                if (data.humidity !== undefined && data.humidity !== null) {
+                    const humidityValue = Math.round(data.humidity);
                     document.getElementById('outdoor-humidity').textContent = humidityValue + '%';
                     console.log('✅ Humidity updated:', humidityValue + '%');
                 } else {
@@ -1429,10 +1359,9 @@
                     console.log('⚠️ No humidity data available');
                 }
                 
-                // Update status to online if we got at least some data
-                if (tempValue !== null || humidityData) {
+                if (tempValue !== null || data.humidity !== null) {
                     document.getElementById('sensor-status').className = 'status-indicator status-online';
-                    console.log('✅ Homey sensors updated successfully');
+                    console.log('✅ Homey sensors updated successfully via Vercel API');
                 } else {
                     throw new Error('No sensor data received from Homey');
                 }
@@ -1443,11 +1372,9 @@
                 console.error('❌ Error updating Homey sensors:', error.message);
                 document.getElementById('sensor-status').className = 'status-indicator status-offline';
                 
-                // Show error in sensor display
                 document.getElementById('outdoor-temp').textContent = 'Error';
                 document.getElementById('outdoor-humidity').textContent = 'Error';
                 
-                // Add error message to sensor card
                 const sensorGrid = document.querySelector('#sensors-card .sensor-grid');
                 let errorDiv = sensorGrid.querySelector('.error-message');
                 if (!errorDiv) {
@@ -1462,185 +1389,16 @@
             }
         }
 
-        function isHomeyConfigured() {
-            const config = CONFIG.homey;
-            
-            // Check if we have valid configuration (not placeholders)
-            if (!config || !config.devices || !config.devices.outdoorTempSensor) {
-                console.log('❌ Missing device configuration');
-                return false;
-            }
-            
-            if (config.devices.outdoorTempSensor.includes('YOUR_')) {
-                console.log('❌ Device ID not configured (contains placeholder)');
-                return false;
-            }
-            
-            // Check if we have valid authentication
-            const hasLocal = config.localUrl && config.bearerToken && 
-                           !config.localUrl.includes('YOUR_') && !config.bearerToken.includes('YOUR_');
-                           
-            const hasCloud = config.cloudUrl && config.accessToken && 
-                           !config.accessToken.includes('YOUR_');
-            
-            if (!hasLocal && !hasCloud) {
-                console.log('❌ No valid authentication configured');
-                return false;
-            }
-            
-            console.log('✅ Homey configuration valid:', {
-                hasLocal: hasLocal,
-                hasCloud: hasCloud,
-                tempSensor: config.devices.outdoorTempSensor
-            });
-            
-            return true;
-        }
-
-        async function getHomeyDeviceData(deviceId) {
-            if (!deviceId || deviceId.includes('YOUR_')) {
-                throw new Error('Device ID not configured or invalid');
-            }
-
-            console.log('🔍 Getting Homey device data for:', deviceId);
-
-            try {
-                // Try local API first if available
-                if (CONFIG.homey.localUrl && CONFIG.homey.bearerToken && 
-                    !CONFIG.homey.localUrl.includes('YOUR_') && !CONFIG.homey.bearerToken.includes('YOUR_')) {
-                    console.log('🏠 Trying Homey Local API...');
-                    return await getHomeyLocalDeviceData(deviceId);
-                }
-                
-                // Fall back to cloud API
-                if (CONFIG.homey.accessToken && !CONFIG.homey.accessToken.includes('YOUR_')) {
-                    console.log('☁️ Trying Homey Cloud API...');
-                    return await getHomeyCloudDeviceData(deviceId);
-                }
-                
-                throw new Error('No valid Homey configuration found');
-                
-            } catch (error) {
-                console.error(`❌ Error getting device data for ${deviceId}:`, error);
-                throw error;
-            }
-        }
-
-        async function getHomeyLocalDeviceData(deviceId) {
-            console.log('📡 Fetching from Homey Local API:', CONFIG.homey.localUrl);
-            
-            try {
-                const response = await fetch(`${CONFIG.homey.localUrl}/api/devices/${deviceId}`, {
-                    method: 'GET',
-                    headers: {
-                        'Authorization': `Bearer ${CONFIG.homey.bearerToken}`,
-                        'Content-Type': 'application/json'
-                    },
-                    timeout: 10000 // 10 second timeout
-                });
-                
-                if (!response.ok) {
-                    throw new Error(`Homey local API error: ${response.status} ${response.statusText}`);
-                }
-                
-                const device = await response.json();
-                console.log('✅ Local API response:', device);
-                
-                return extractSensorData(device);
-                
-            } catch (error) {
-                console.error('❌ Local API failed:', error.message);
-                throw new Error(`Local API failed: ${error.message}`);
-            }
-        }
-
-        async function getHomeyCloudDeviceData(deviceId) {
-            console.log('☁️ Fetching from Homey Cloud API');
-            
-            try {
-                const response = await fetch(`${CONFIG.homey.cloudUrl}/device/${deviceId}`, {
-                    method: 'GET',
-                    headers: {
-                        'Authorization': `Bearer ${CONFIG.homey.accessToken}`,
-                        'Content-Type': 'application/json'
-                    },
-                    timeout: 15000 // 15 second timeout for cloud
-                });
-                
-                if (!response.ok) {
-                    if (response.status === 401) {
-                        throw new Error('Cloud API authentication failed - check access token');
-                    }
-                    throw new Error(`Homey cloud API error: ${response.status} ${response.statusText}`);
-                }
-                
-                const device = await response.json();
-                console.log('✅ Cloud API response:', device);
-                
-                return extractSensorData(device);
-                
-            } catch (error) {
-                console.error('❌ Cloud API failed:', error.message);
-                throw new Error(`Cloud API failed: ${error.message}`);
-            }
-        }
-
-        function extractSensorData(device) {
-            console.log('🔧 Extracting sensor data from device:', device);
-            
-            const data = {};
-            
-            // Handle different device response structures
-            if (device.capabilitiesObj) {
-                // Standard Homey device structure
-                console.log('📊 Device capabilities:', Object.keys(device.capabilitiesObj));
-                
-                // Try different temperature capability names
-                const tempCapabilities = ['measure_temperature', 'temperature', 'temp'];
-                for (const cap of tempCapabilities) {
-                    if (device.capabilitiesObj[cap] && device.capabilitiesObj[cap].value !== undefined) {
-                        data.temperature = device.capabilitiesObj[cap].value;
-                        console.log(`✅ Found temperature in '${cap}':`, data.temperature);
-                        break;
-                    }
-                }
-                
-                // Try different humidity capability names
-                const humidityCapabilities = ['measure_humidity', 'humidity', 'hum'];
-                for (const cap of humidityCapabilities) {
-                    if (device.capabilitiesObj[cap] && device.capabilitiesObj[cap].value !== undefined) {
-                        data.humidity = device.capabilitiesObj[cap].value;
-                        console.log(`✅ Found humidity in '${cap}':`, data.humidity);
-                        break;
-                    }
-                }
-            } else if (device.capabilities) {
-                // Alternative structure - direct capabilities
-                console.log('📊 Direct capabilities:', device.capabilities);
-                if (device.capabilities.temperature !== undefined) {
-                    data.temperature = device.capabilities.temperature;
-                }
-                if (device.capabilities.humidity !== undefined) {
-                    data.humidity = device.capabilities.humidity;
-                }
-            }
-            
-            console.log('🎯 Extracted data:', data);
-            return data;
-        }
-
         // ========== HAFJELL WEATHER STATIONS (FROM HAFJELL WEBSITE) ==========
 
         async function updateHafjellWeather() {
             console.log('Updating Hafjell weather stations with REAL data from Hafjell website...');
             
             try {
-                // Fetch real weather data directly from Hafjell website
                 const hafjellData = await getHafjellWeatherData();
                 
                 console.log('REAL Hafjell weather data from website:', hafjellData);
 
-                // Update UI with real data from Hafjell website
                 document.getElementById('top-temp').textContent = `${hafjellData.top.temperature}°C`;
                 document.getElementById('top-desc').textContent = hafjellData.top.condition;
                 document.getElementById('top-wind').textContent = `${hafjellData.top.wind} m/s`;
@@ -1658,7 +1416,6 @@
                 document.getElementById('hafjell-status').className = 'status-indicator status-online';
                 console.log('Hafjell weather updated successfully with REAL website data');
                 
-                // 🎨 Apply Swix color coding AFTER data retrieval - multiple attempts with different delays
                 setTimeout(() => {
                     console.log('🎨 Applying Swix colors to Hafjell temperatures...');
                     applySwixColorToElement('top-temp', hafjellData.top.temperature);
@@ -1684,7 +1441,6 @@
                 console.error('Error updating Hafjell weather from website:', error);
                 document.getElementById('hafjell-status').className = 'status-indicator status-offline';
                 
-                // Show error in UI
                 document.getElementById('top-temp').textContent = 'Error';
                 document.getElementById('bottom-temp').textContent = 'Error';
                 document.getElementById('top-desc').textContent = 'Website unavailable';
@@ -1698,7 +1454,6 @@
             try {
                 console.log('Fetching REAL weather data from Hafjell website...');
                 
-                // Use CORS proxy to get Hafjell page content (same as lift status)
                 const proxyUrl = 'https://api.allorigins.win/get?url=';
                 const targetUrl = encodeURIComponent('https://www.hafjell.no/en/snorapport-hafjell');
                 
@@ -1710,7 +1465,6 @@
                     
                     console.log('Successfully fetched Hafjell page content for weather data');
                     
-                    // Parse HTML to extract real weather data
                     const weatherData = parseWeatherDataFromHTML(htmlContent);
                     console.log('Parsed REAL weather data:', weatherData);
                     
@@ -1728,15 +1482,12 @@
             console.log('Parsing weather data from Hafjell HTML...');
             
             try {
-                // Create a temporary DOM parser
                 const parser = new DOMParser();
                 const doc = parser.parseFromString(htmlContent, 'text/html');
                 
-                // Get all text content for analysis
                 const allText = doc.body.textContent.replace(/\s+/g, ' ').trim();
                 console.log('Full page text sample:', allText.substring(0, 500));
                 
-                // Initialize weather data structure
                 const weatherData = {
                     top: {
                         temperature: '--',
@@ -1756,13 +1507,6 @@
 
                 console.log('Looking for weather data pattern in Hafjell content...');
                 
-                // Look for the specific pattern from Hafjell website:
-                // [On the top] [On the bottom] Current conditions [weather] [weather] [temp1] [temp2] [wind1]m/s [wind2]m/s
-                
-                // Method 1: Find temperature and wind data using known patterns
-                // Look for pattern like "11 20 5.6m/s 2m/s" or similar
-                
-                // Find temperatures (single or double digits followed by potential wind data)
                 const tempWindPattern = /(\d{1,2})\s+(\d{1,2})\s+(\d+\.?\d*)m\/s\s+(\d+\.?\d*)m\/s/;
                 const tempWindMatch = allText.match(tempWindPattern);
                 
@@ -1777,29 +1521,24 @@
                 } else {
                     console.log('Temperature/wind pattern not found, trying alternative methods...');
                     
-                    // Method 2: Look for individual temperature and wind values
-                    // Find all temperatures on page (reasonable range)
                     const allTemps = allText.match(/\b(\d{1,2})\b/g);
                     const reasonableTemps = allTemps ? allTemps.filter(temp => {
                         const num = parseInt(temp);
-                        return num >= -15 && num <= 30; // Reasonable ski resort temperature range
+                        return num >= -15 && num <= 30;
                     }) : [];
                     
                     console.log('All reasonable temperatures found:', reasonableTemps);
                     
-                    // Find all wind speeds
                     const windMatches = allText.match(/(\d+\.?\d*)\s*m\/s/g);
                     console.log('All wind speeds found:', windMatches);
                     
                     if (reasonableTemps.length >= 2) {
-                        // Usually top station (higher elevation) is colder than bottom
-                        const temps = reasonableTemps.map(t => parseInt(t)).filter((t, i, arr) => arr.indexOf(t) === i); // Remove duplicates
-                        temps.sort((a, b) => a - b); // Sort ascending
+                        const temps = reasonableTemps.map(t => parseInt(t)).filter((t, i, arr) => arr.indexOf(t) === i);
+                        temps.sort((a, b) => a - b);
                         
-                        // Assign temperatures (colder one likely top station)
                         if (temps.length >= 2) {
-                            weatherData.top.temperature = temps[0].toString(); // Colder temp for top
-                            weatherData.bottom.temperature = temps[temps.length - 1].toString(); // Warmer temp for bottom
+                            weatherData.top.temperature = temps[0].toString();
+                            weatherData.bottom.temperature = temps[temps.length - 1].toString();
                             console.log(`Assigned temperatures: Top ${weatherData.top.temperature}°C, Bottom ${weatherData.bottom.temperature}°C`);
                         }
                     }
@@ -1812,7 +1551,6 @@
                     }
                 }
                 
-                // Method 3: Look for weather conditions
                 if (allText.includes('Mostly sunny')) {
                     weatherData.top.condition = 'Mostly sunny';
                     weatherData.bottom.condition = 'Mostly sunny';
@@ -1830,13 +1568,11 @@
                     weatherData.bottom.condition = 'Partly cloudy';
                 }
                 
-                // Method 4: Look for snow data
                 const snowMatches = allText.match(/(\d+)cm/g);
                 if (snowMatches) {
                     const snowDepths = snowMatches.map(s => s.replace('cm', ''));
                     console.log('Snow depths found:', snowDepths);
                     
-                    // Find the most reasonable snow depth (usually 50-100cm in winter)
                     const reasonableSnow = snowDepths.find(s => parseInt(s) >= 50 && parseInt(s) <= 150);
                     if (reasonableSnow) {
                         weatherData.top.snow = reasonableSnow;
@@ -1847,17 +1583,15 @@
                     }
                 }
                 
-                // Set fresh snow (last day) - typically small amount
                 weatherData.top.snowLastDay = Math.floor(Math.random() * 3).toString();
                 weatherData.bottom.snowLastDay = weatherData.top.snowLastDay;
                 
-                // Fallback to reasonable values if parsing completely failed
                 if (weatherData.top.temperature === '--' || weatherData.bottom.temperature === '--') {
                     console.log('Parsing failed, using fallback values');
-                    weatherData.top.temperature = '11';    // From recent fetch
-                    weatherData.bottom.temperature = '20';  // From recent fetch
-                    weatherData.top.wind = '5.6';          // From recent fetch
-                    weatherData.bottom.wind = '2.0';       // From recent fetch
+                    weatherData.top.temperature = '11';
+                    weatherData.bottom.temperature = '20';
+                    weatherData.top.wind = '5.6';
+                    weatherData.bottom.wind = '2.0';
                 }
                 
                 if (weatherData.top.snow === '0') {
@@ -1871,19 +1605,18 @@
             } catch (parseError) {
                 console.error('Error parsing weather HTML content:', parseError);
                 
-                // Return current real values from Hafjell website
                 return {
                     top: {
-                        temperature: '11',      // Current value from website
+                        temperature: '11',
                         condition: 'Mostly sunny',
-                        wind: '5.6',           // Current value from website
+                        wind: '5.6',
                         snow: '65',
                         snowLastDay: '0'
                     },
                     bottom: {
-                        temperature: '20',      // Current value from website
+                        temperature: '20',
                         condition: 'Mostly sunny',
-                        wind: '2.0',           // Current value from website  
+                        wind: '2.0',
                         snow: '65',
                         snowLastDay: '0'
                     }
@@ -1896,12 +1629,10 @@
         async function updateLiftStatus() {
             console.log('Updating Hafjell lift status with REAL data...');
             try {
-                // Try to get real lift status from Hafjell website
                 const liftData = await getHafjellLiftStatus();
                 
                 console.log('REAL lift status data:', liftData);
                 
-                // Update each lift
                 Object.keys(liftData).forEach(liftKey => {
                     const liftElement = document.getElementById(`lift-${liftKey}`);
                     if (liftElement) {
@@ -1919,7 +1650,6 @@
                 console.error('Error updating lift status:', error);
                 document.getElementById('lifts-status').className = 'status-indicator status-offline';
                 
-                // Fallback to time-based realistic simulation
                 const currentHour = new Date().getHours();
                 const isOperatingHours = currentHour >= 9 && currentHour <= 16;
                 const isWeekend = [0, 6].includes(new Date().getDay());
@@ -1936,7 +1666,6 @@
                 
                 console.log('Using fallback lift data due to API error:', fallbackData);
                 
-                // Update with fallback data
                 Object.keys(fallbackData).forEach(liftKey => {
                     const liftElement = document.getElementById(`lift-${liftKey}`);
                     if (liftElement) {
@@ -1954,7 +1683,6 @@
             try {
                 console.log('Attempting to fetch REAL lift status from Hafjell website...');
                 
-                // Try to use CORS proxy to get Hafjell page content
                 const proxyUrl = 'https://api.allorigins.win/get?url=';
                 const targetUrl = encodeURIComponent('https://www.hafjell.no/en/snorapport-hafjell');
                 
@@ -1966,7 +1694,6 @@
                     
                     console.log('Successfully fetched Hafjell page content');
                     
-                    // Parse HTML to extract real lift status
                     const liftStatus = parseLiftStatusFromHTML(htmlContent);
                     console.log('Parsed REAL lift statuses:', liftStatus);
                     
@@ -1984,11 +1711,9 @@
             console.log('Parsing lift status from Hafjell HTML...');
             
             try {
-                // Create a temporary DOM parser
                 const parser = new DOMParser();
                 const doc = parser.parseFromString(htmlContent, 'text/html');
                 
-                // Lift name mappings from Hafjell website to our dashboard IDs
                 const liftMappings = {
                     'backyardheisen': ['backyard', 'backyardheisen'],
                     'hafjell360': ['hafjell 360', '360'],
@@ -2001,14 +1726,12 @@
                 
                 const liftStatus = {};
                 
-                // Find all h4 elements that contain lift names
                 const h4Elements = doc.querySelectorAll('h4.h4');
                 
                 h4Elements.forEach(h4 => {
                     const liftName = h4.textContent.trim().toLowerCase();
                     console.log('Found lift in HTML:', liftName);
                     
-                    // Find the corresponding span with status
                     const parentDiv = h4.closest('div');
                     if (parentDiv) {
                         const statusSpan = parentDiv.querySelector('span');
@@ -2016,10 +1739,8 @@
                             const statusText = statusSpan.textContent.trim().toLowerCase();
                             console.log(`Lift "${liftName}" status: "${statusText}"`);
                             
-                            // Map the lift name to our dashboard ID
                             for (const [dashboardId, possibleNames] of Object.entries(liftMappings)) {
                                 if (possibleNames.some(name => liftName.includes(name))) {
-                                    // Normalize status text
                                     let normalizedStatus = 'unknown';
                                     if (statusText.includes('åpne') || statusText.includes('open')) {
                                         normalizedStatus = 'open';
@@ -2036,10 +1757,8 @@
                     }
                 });
                 
-                // If we didn't find enough lifts, add fallback for missing ones
                 Object.keys(liftMappings).forEach(liftId => {
                     if (!liftStatus[liftId]) {
-                        // Time-based fallback for missing lifts
                         const currentHour = new Date().getHours();
                         const isOperatingHours = currentHour >= 9 && currentHour <= 16;
                         const isWeekend = [0, 6].includes(new Date().getDay());
@@ -2059,7 +1778,6 @@
             } catch (parseError) {
                 console.error('Error parsing HTML content:', parseError);
                 
-                // Return fallback data based on operating hours
                 const currentHour = new Date().getHours();
                 const isOperatingHours = currentHour >= 9 && currentHour <= 16;
                 const isWeekend = [0, 6].includes(new Date().getDay());
@@ -2131,7 +1849,6 @@
                 return;
             }
             
-            // Collect temperatures for Swix color coding
             const forecastTemps = [];
             
             todayForecasts.forEach(item => {
@@ -2157,11 +1874,9 @@
                 `;
                 forecastContent.appendChild(forecastItem);
                 
-                // Store temperature for Swix color coding
                 forecastTemps.push(temp);
             });
             
-            // 🎨 Apply Swix color coding to forecast temperatures AFTER display - with delay
             setTimeout(() => {
                 console.log('🎨 Applying Swix colors to today\'s forecast temperatures:', forecastTemps);
                 applySwixColorToElements('forecast-temp', forecastTemps);
@@ -2188,7 +1903,6 @@
                 return;
             }
             
-            // Collect temperatures for Swix color coding
             const tomorrowTemps = [];
             
             tomorrowForecasts.forEach(item => {
@@ -2214,21 +1928,17 @@
                 `;
                 tomorrowContent.appendChild(forecastItem);
                 
-                // Store temperature for Swix color coding
                 tomorrowTemps.push(temp);
             });
             
-            // 🎨 Apply Swix color coding to tomorrow forecast temperatures AFTER display - with delay
             setTimeout(() => {
                 console.log('🎨 Applying Swix colors to tomorrow\'s forecast temperatures:', tomorrowTemps);
                 const tomorrowTempElements = document.querySelectorAll('#tomorrow-content .forecast-temp');
                 tomorrowTempElements.forEach((element, index) => {
                     const temp = tomorrowTemps[index];
                     if (temp !== null && temp !== undefined && !isNaN(parseFloat(temp))) {
-                        // Remove any existing Swix color classes
                         element.classList.remove('swix-temp-yellow', 'swix-temp-red', 'swix-temp-violet', 'swix-temp-blue', 'swix-temp-green', 'swix-temp-polar');
                         
-                        // Add the appropriate Swix color class
                         const swixClass = getSwixColorClass(temp);
                         if (swixClass) {
                             element.classList.add(swixClass);
@@ -2330,16 +2040,16 @@
                 console.log('Starting REAL-TIME data refresh from all sources...');
                 
                 const [outdoorTemp, hafjellTemps] = await Promise.all([
-                    updatePersonalSensors(),      // Homey outdoor sensors (IMPROVED + SWIX COLORS)
-                    updateHafjellWeather()        // Hafjell website scraping (UNCHANGED + SWIX COLORS)
+                    updatePersonalSensors(),
+                    updateHafjellWeather()
                 ]);
                 
                 await Promise.all([
-                    updateForecast(),             // YR.no forecast API (UNCHANGED + SWIX COLORS)
-                    updateLiftStatus()            // Hafjell lift status (UNCHANGED)
+                    updateForecast(),
+                    updateLiftStatus()
                 ]);
                 
-                refreshWebcam();                  // Live webcam (UNCHANGED)
+                refreshWebcam();
                 
                 const hafjellTopTemp = hafjellTemps?.top || null;
                 const hafjellBottomTemp = hafjellTemps?.bottom || null;
@@ -2352,7 +2062,6 @@
                 updateTimestamp();
                 console.log('All REAL-TIME data refreshed successfully with official Swix color coding applied');
                 
-                // 🎨 Multiple attempts at color application to ensure it works
                 setTimeout(() => {
                     console.log('🎨 First color application attempt...');
                     applyAllSwixColors();
@@ -2389,7 +2098,6 @@
             
             await refreshAllData();
             
-            // Auto-refresh every 5 minutes for real-time data
             setInterval(async () => {
                 console.log('Auto-refreshing REAL-TIME dashboard data with official Swix colors...');
                 await refreshAllData();
@@ -2397,11 +2105,10 @@
             
             setInterval(updateTimestamp, 60 * 1000);
             
-            // Periodic color reapplication to ensure colors stick
             setInterval(() => {
                 console.log('🎨 Periodic Swix color reapplication...');
                 applyAllSwixColors();
-            }, 30 * 1000); // Every 30 seconds
+            }, 30 * 1000);
             
             console.log('WK Dashboard initialized successfully with 5-minute real-time auto-refresh and official Swix color coding');
         }
@@ -2415,14 +2122,19 @@
     Password: winter2025
     
     ✅ REAL-TIME DATA SOURCES:
-    1. 🏠 Homey Sensors: ⭐ IMPROVED - Real API integration for remote access + SWIX COLORS
+    1. 🏠 Homey Sensors: ⭐ VIA VERCEL SERVERLESS API - Secure remote access + SWIX COLORS
     2. 🏔️ Hafjell Weather: ✅ WORKING - Website scraping with HTML parsing + SWIX COLORS
     3. 📊 YR.no Forecast: ✅ WORKING - Official Norwegian weather forecast API + SWIX COLORS
     4. 🎿 Lift Status: ✅ WORKING - Real-time from Hafjell website scraping
     5. 📷 Live Webcam: ✅ WORKING - Vidsynexpressen camera feed with auto-refresh
     
-    🎨 NEW: OFFICIAL SWIX TEMPERATURE COLOR CODING APPLIED TO:
-    ✅ Outdoor sensor temperature (Homey)
+    🔐 SECURITY:
+    - All Homey credentials stored securely in Vercel environment variables
+    - Frontend calls /api/homey serverless function
+    - No credentials exposed in client-side code
+    
+    🎨 OFFICIAL SWIX TEMPERATURE COLOR CODING APPLIED TO:
+    ✅ Outdoor sensor temperature (Homey via Vercel API)
     ✅ Hafjell top station temperature 
     ✅ Hafjell bottom station temperature
     ✅ YR.no today's forecast temperatures
@@ -2435,9 +2147,6 @@
     🔵 Blue: -6°C to -12°C (21°F to 10°F) - Cold conditions - Use blue wax
     🟢 Green: -10°C to -18°C (14°F to 0°F) - Very cold - Use green/turquoise wax
     ⚪ White: Below -18°C (Below 0°F) - Polar conditions - Use polar wax
-    
-    Color coding is applied AFTER data retrieval to ensure it doesn't interfere with data gathering!
-    Based on official Swix cross-country ski wax temperature ranges for optimal performance.
     -->
 </body>
 </html>
