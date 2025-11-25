@@ -1,14 +1,15 @@
 {
   "name": "wk-weather-dashboard",
   "version": "1.0.0",
-  "description": "WK Snow Weather Dashboard with Homey Pro integration",
+  "description": "WK Snow Weather Dashboard with Homey Pro integration via Cloud API",
   "scripts": {
     "setup": "node setup-homey.js",
     "dev": "vercel dev",
     "deploy": "vercel --prod"
   },
   "dependencies": {
-    "homey-api": "^3.7.0"
+    "homey-api": "^3.7.0",
+    "node-fetch": "^2.7.0"
   },
   "devDependencies": {
     "readline": "^1.3.0"
