@@ -11,7 +11,7 @@
  * - HOMEY_DEVICE_ID_HUMIDITY (outdoor humidity sensor, optional)
  */
 
-const AthomCloudAPI = require('homey-api/lib/AthomCloudAPI');
+const { AthomCloudAPI } = require('homey-api');
 
 // Cache for Homey API connection (persists across function invocations)
 let cachedHomeyApi = null;
@@ -43,7 +43,13 @@ async function getHomeyApi() {
 
   // Get user and first Homey
   const user = await cloudApi.getAuthenticatedUser();
-  const homey = await user.getFirstHomey();
+  const homeys = await user.getHomeys();
+  
+  if (homeys.length === 0) {
+    throw new Error('No Homey devices found');
+  }
+  
+  const homey = homeys[0];
   
   // Create session
   const homeyApi = await homey.authenticate();
