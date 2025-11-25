@@ -1,128 +1,69 @@
 export default async function handler(req, res) {
-  // Enable CORS
-  res.setHeader('Access-Control-Allow-Credentials', true);
   res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,POST');
-  res.setHeader('Access-Control-Allow-Headers', 'X-Requested-With, Content-Type, Accept');
-
+  res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS');
+  
   if (req.method === 'OPTIONS') {
     return res.status(200).json({ message: 'OK' });
   }
 
-  if (req.method !== 'GET') {
-    return res.status(405).json({ error: 'Method not allowed' });
-  }
-
   try {
-    // Validate environment variables
-    const requiredEnvVars = [
-      'HOMEY_CLIENT_ID',
-      'HOMEY_CLIENT_SECRET',
-      'HOMEY_USERNAME',
-      'HOMEY_PASSWORD',
-      'HOMEY_DEVICE_ID_TEMP'
-    ];
-
-    const missingVars = requiredEnvVars.filter(varName => !process.env[varName]);
-    if (missingVars.length > 0) {
-      return res.status(500).json({
-        error: 'Configuration error',
-        message: `Missing environment variables: ${missingVars.join(', ')}`
-      });
-    }
-
-    // Try multiple import strategies
-    let AthomCloudAPI;
-    
-    // Strategy 1: Try dynamic import of main package
-    try {
-      const homeyApi = await import('homey-api');
-      AthomCloudAPI = homeyApi.AthomCloudAPI || homeyApi.default?.AthomCloudAPI;
-    } catch (e) {
-      console.log('Strategy 1 failed:', e.message);
-    }
-    
-    // Strategy 2: Try importing the specific file
-    if (!AthomCloudAPI) {
-      try {
-        const athomModule = await import('homey-api/lib/AthomCloudAPI.js');
-        AthomCloudAPI = athomModule.default || athomModule.AthomCloudAPI || athomModule;
-      } catch (e) {
-        console.log('Strategy 2 failed:', e.message);
-      }
-    }
-    
-    // Strategy 3: Try require (CommonJS)
-    if (!AthomCloudAPI) {
-      try {
-        const { createRequire } = await import('module');
-        const require = createRequire(import.meta.url);
-        AthomCloudAPI = require('homey-api/lib/AthomCloudAPI');
-      } catch (e) {
-        console.log('Strategy 3 failed:', e.message);
-      }
-    }
-
-    if (!AthomCloudAPI || typeof AthomCloudAPI !== 'function') {
-      return res.status(500).json({
-        error: 'Could not import AthomCloudAPI',
-        message: 'All import strategies failed',
-        type: typeof AthomCloudAPI
-      });
-    }
-
-    // Create Cloud API instance
-    const cloudApi = new AthomCloudAPI({
-      clientId: process.env.HOMEY_CLIENT_ID,
-      clientSecret: process.env.HOMEY_CLIENT_SECRET,
-    });
-
-    // Check if method exists
-    if (typeof cloudApi.authenticateWithUsernamePassword !== 'function') {
-      return res.status(500).json({
-        error: 'authenticateWithUsernamePassword not found',
-        availableMethods: Object.getOwnPropertyNames(Object.getPrototypeOf(cloudApi)),
-        cloudApiType: typeof cloudApi
-      });
-    }
-
-    // Authenticate
-    await cloudApi.authenticateWithUsernamePassword({
-      username: process.env.HOMEY_USERNAME,
-      password: process.env.HOMEY_PASSWORD,
-    });
-
-    // Get user and first Homey
-    const user = await cloudApi.getAuthenticatedUser();
-    const homeys = await user.getHomeys();
-    
-    if (homeys.length === 0) {
-      throw new Error('No Homey devices found');
-    }
-    
-    const homey = homeys[0];
-    const homeyApiInstance = await homey.authenticate();
-    
-    // Fetch device data
-    const tempDeviceId = process.env.HOMEY_DEVICE_ID_TEMP;
-    const device = await homeyApiInstance.devices.getDevice({ id: tempDeviceId });
-    const caps = device.capabilitiesObj || device.capabilities || {};
-    
-    const responseData = {
-      temperature: caps.measure_temperature?.value || caps.temperature?.value || null,
-      humidity: caps.measure_humidity?.value || caps.humidity?.value || null,
-      timestamp: new Date().toISOString(),
-      source: 'homey-pro'
+    // Just test environment variables - no Homey import yet
+    const envCheck = {
+      HOMEY_CLIENT_ID: !!process.env.HOMEY_CLIENT_ID,
+      HOMEY_CLIENT_SECRET: !!process.env.HOMEY_CLIENT_SECRET,
+      HOMEY_USERNAME: !!process.env.HOMEY_USERNAME,
+      HOMEY_PASSWORD: !!process.env.HOMEY_PASSWORD,
+      HOMEY_DEVICE_ID_TEMP: !!process.env.HOMEY_DEVICE_ID_TEMP,
+      HOMEY_DEVICE_ID_HUMIDITY: !!process.env.HOMEY_DEVICE_ID_HUMIDITY
     };
-    
-    return res.status(200).json(responseData);
-    
+
+    return res.status(200).json({
+      message: 'Minimal test - environment variables check',
+      envCheck,
+      allPresent: Object.values(envCheck).every(v => v === true)
+    });
   } catch (error) {
     return res.status(500).json({
-      error: 'Failed to fetch Homey data',
-      message: error.message,
-      stack: error.stack,
-      timestamp: new Date().toISOString()
+      error: error.message,
+      stack: error.stack
     });
   }
 }
+```
+
+Upload this via Vercel dashboard, wait for deployment, then visit:
+```
+https://wksnowdashboard.wvsailing.co.uk/api/homey
+```
+
+**What do you see?** This should at least work and tell us if environment variables are set.
+
+---
+
+## Step 2: Check if homey-api is installed
+
+The crash might be because `homey-api` isn't being installed. Check your **package.json** is in the root directory:
+```
+your-project/
+├── api/
+│   ├── homey.js
+│   └── auth.js
+├── package.json  ← Must be HERE at root level
+├── index.html
+└── vercel.json
+```
+
+**Is package.json at the root level?** If not, move it there.
+
+---
+
+## Step 3: Check Vercel Build Logs
+
+In Vercel dashboard:
+1. Go to **Deployments**
+2. Click latest deployment
+3. Click **Building** or **Build Logs** tab
+4. Look for lines about `npm install` - does it say:
+```
+   Installing dependencies...
+   added X packages
