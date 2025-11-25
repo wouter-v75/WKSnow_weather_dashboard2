@@ -7,21 +7,65 @@ export default async function handler(req, res) {
   }
 
   try {
-    // Just test environment variables - no Homey import yet
-    const envCheck = {
-      HOMEY_CLIENT_ID: !!process.env.HOMEY_CLIENT_ID,
-      HOMEY_CLIENT_SECRET: !!process.env.HOMEY_CLIENT_SECRET,
-      HOMEY_USERNAME: !!process.env.HOMEY_USERNAME,
-      HOMEY_PASSWORD: !!process.env.HOMEY_PASSWORD,
-      HOMEY_DEVICE_ID_TEMP: !!process.env.HOMEY_DEVICE_ID_TEMP,
-      HOMEY_DEVICE_ID_HUMIDITY: !!process.env.HOMEY_DEVICE_ID_HUMIDITY
+    const testResults = {
+      step: 'starting',
+      errors: []
     };
 
+    // Test 1: Can we import the package at all?
+    testResults.step = 'importing homey-api';
+    let homeyApi;
+    try {
+      homeyApi = await import('homey-api');
+      testResults.importSuccess = true;
+      testResults.homeyApiKeys = Object.keys(homeyApi);
+      testResults.hasDefault = !!homeyApi.default;
+      testResults.hasAthomCloudAPI = !!homeyApi.AthomCloudAPI;
+    } catch (importError) {
+      testResults.importSuccess = false;
+      testResults.importError = importError.message;
+      return res.status(500).json(testResults);
+    }
+
+    // Test 2: Can we access AthomCloudAPI?
+    testResults.step = 'accessing AthomCloudAPI';
+    let AthomCloudAPI;
+    try {
+      AthomCloudAPI = homeyApi.AthomCloudAPI || homeyApi.default?.AthomCloudAPI || homeyApi.default;
+      testResults.athomCloudAPIType = typeof AthomCloudAPI;
+      testResults.athomCloudAPIFound = !!AthomCloudAPI;
+    } catch (accessError) {
+      testResults.accessError = accessError.message;
+      return res.status(500).json(testResults);
+    }
+
+    // Test 3: Can we create an instance?
+    testResults.step = 'creating instance';
+    let cloudApi;
+    try {
+      cloudApi = new AthomCloudAPI({
+        clientId: process.env.HOMEY_CLIENT_ID,
+        clientSecret: process.env.HOMEY_CLIENT_SECRET,
+      });
+      testResults.instanceCreated = true;
+      testResults.instanceType = typeof cloudApi;
+      
+      // Get all methods on the instance
+      const proto = Object.getPrototypeOf(cloudApi);
+      testResults.availableMethods = Object.getOwnPropertyNames(proto);
+      testResults.hasAuthMethod = testResults.availableMethods.includes('authenticateWithUsernamePassword');
+      
+    } catch (constructError) {
+      testResults.instanceCreated = false;
+      testResults.constructError = constructError.message;
+      return res.status(500).json(testResults);
+    }
+
     return res.status(200).json({
-      message: 'Minimal test - environment variables check',
-      envCheck,
-      allPresent: Object.values(envCheck).every(v => v === true)
+      message: 'Import test successful',
+      testResults
     });
+    
   } catch (error) {
     return res.status(500).json({
       error: error.message,
