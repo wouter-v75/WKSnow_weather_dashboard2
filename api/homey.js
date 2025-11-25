@@ -50,15 +50,15 @@ async function getHomeyApiWithRetry(maxRetries = 2) {
         clientSecret: process.env.HOMEY_CLIENT_SECRET,
       });
 
-      console.log(`Attempt ${attempt}/${maxRetries}: Authenticating with username/password...`);
+      console.log(`Attempt ${attempt}/${maxRetries}: Calling authenticateWithPassword...`);
 
       // Authenticate with username/password
       // Wrap in a promise with timeout
       await Promise.race([
-        cloudApi.authenticateWithUsernamePassword({
-          username: process.env.HOMEY_USERNAME,
-          password: process.env.HOMEY_PASSWORD,
-        }),
+        cloudApi.authenticateWithPassword(
+          process.env.HOMEY_USERNAME,
+          process.env.HOMEY_PASSWORD
+        ),
         new Promise((_, reject) => 
           setTimeout(() => reject(new Error('Authentication timeout after 25 seconds')), 25000)
         )
