@@ -1321,7 +1321,7 @@
             try {
                 console.log('📡 Fetching data from Vercel serverless function...');
                 
-                const response = await fetch('/api/homey-improved');
+                const response = await fetch('/api/homey');
                 
                 if (!response.ok) {
                     const errorData = await response.json();
