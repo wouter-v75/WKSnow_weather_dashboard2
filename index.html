@@ -141,15 +141,6 @@
             transform: translateY(-1px);
         }
 
-        /* Mobile positioning for logout button */
-        body.device-iphone .logout-btn,
-        body.device-android .logout-btn {
-            top: 10px;
-            right: 10px;
-            padding: 6px 12px;
-            font-size: 0.7rem;
-        }
-
         /* ========== WEATHER DASHBOARD STYLES ========== */
 
         * {
@@ -185,66 +176,6 @@
             height: calc(100vh - 16px);
         }
 
-        /* iPad layout - 4 cards across (default) */
-        body.device-ipad .dashboard {
-            grid-template-columns: 1fr 1fr 1fr 1fr;
-            grid-template-rows: auto 1fr;
-            height: calc(100vh - 16px);
-        }
-
-        /* iPhone layout - stacked vertically */
-        body.device-iphone .dashboard {
-            grid-template-columns: 1fr;
-            grid-template-rows: auto repeat(4, auto);
-            gap: 10px;
-            height: auto;
-            padding-bottom: 60px;
-        }
-
-        body.device-iphone .forecast-column {
-            flex-direction: column;
-            gap: 10px;
-        }
-
-        body.device-iphone .card {
-            min-height: 300px;
-        }
-
-        body.device-iphone .forecast-card {
-            min-height: 250px;
-        }
-
-        /* Android phone layout - stacked vertically */
-        body.device-android .dashboard {
-            grid-template-columns: 1fr;
-            grid-template-rows: auto repeat(4, auto);
-            gap: 10px;
-            height: auto;
-            padding-bottom: 60px;
-        }
-
-        body.device-android .forecast-column {
-            flex-direction: column;
-            gap: 10px;
-        }
-
-        body.device-android .card {
-            min-height: 300px;
-        }
-
-        body.device-android .forecast-card {
-            min-height: 250px;
-        }
-
-        /* Allow scrolling on mobile devices */
-        body.device-iphone.dashboard-mode,
-        body.device-android.dashboard-mode {
-            overflow-y: auto;
-            overflow-x: hidden;
-            min-height: 100vh;
-            padding-bottom: 80px;
-        }
-
         .header {
             grid-column: 1 / -1;
             text-align: center;
@@ -258,19 +189,6 @@
             font-size: 1.5rem;
             margin-bottom: 2px;
             text-shadow: 2px 2px 8px rgba(0,0,0,0.8);
-        }
-
-        /* Mobile header adjustments */
-        body.device-iphone .header h1,
-        body.device-android .header h1 {
-            font-size: 1.2rem;
-            margin-bottom: 5px;
-        }
-
-        body.device-iphone .header,
-        body.device-android .header {
-            padding: 10px 0;
-            margin-bottom: 10px;
         }
 
         .header .timestamp {
@@ -290,50 +208,6 @@
             font-size: 0.65rem;
             line-height: 1.3;
             z-index: 1000;
-        }
-
-        /* Mobile positioning for timestamp */
-        body.device-iphone .header .timestamp,
-        body.device-android .header .timestamp {
-            position: relative;
-            bottom: auto;
-            left: auto;
-            display: block;
-            margin: 10px auto;
-            width: fit-content;
-        }
-
-        .refresh-btn {
-            position: fixed;
-            bottom: 10px;
-            right: 10px;
-            background: rgba(255, 255, 255, 0.3);
-            color: white;
-            border: none;
-            border-radius: 50px;
-            padding: 8px 12px;
-            font-size: 0.7rem;
-            cursor: pointer;
-            box-shadow: 
-                0 4px 20px rgba(0, 0, 0, 0.3),
-                inset 0 1px 0 rgba(255, 255, 255, 0.4);
-            backdrop-filter: blur(10px);
-            -webkit-backdrop-filter: blur(10px);
-            border: 1px solid rgba(255, 255, 255, 0.4);
-            transition: all 0.3s ease;
-            text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
-            z-index: 1001;
-        }
-
-        /* Mobile positioning for refresh button */
-        body.device-iphone .refresh-btn,
-        body.device-android .refresh-btn {
-            position: sticky;
-            bottom: 10px;
-            margin: 20px auto;
-            display: block;
-            left: 50%;
-            transform: translateX(-50%);
         }
 
         .forecast-column {
@@ -806,38 +680,37 @@
         }
 
         @media (max-width: 1024px) and (orientation: landscape) {
-            /* Only apply to iPad in landscape - don't override phone layouts */
-            body.device-ipad .dashboard {
+            .dashboard {
                 grid-template-columns: repeat(4, 1fr);
                 gap: 6px;
                 height: calc(100vh - 12px);
             }
             
-            body.device-ipad .card {
+            .card {
                 padding: 10px;
             }
             
-            body.device-ipad .header h1 {
+            .header h1 {
                 font-size: 1.3rem;
             }
         }
 
         @media (max-width: 768px) {
-            /* Fallback for undetected small screens */
-            body:not(.device-ipad):not(.device-iphone):not(.device-android) .dashboard {
-                grid-template-columns: 1fr;
-                grid-template-rows: auto repeat(4, auto);
-                gap: 10px;
+            .dashboard {
+                grid-template-columns: 1fr 1fr;
+                grid-template-rows: auto 1fr 1fr 1fr;
+                gap: 8px;
                 height: auto;
                 overflow: visible;
             }
             
-            body:not(.device-ipad):not(.device-iphone):not(.device-android) .forecast-column {
-                flex-direction: column;
+            .forecast-column {
+                grid-column: 1 / -1;
+                flex-direction: row;
                 gap: 8px;
             }
             
-            body:not(.device-ipad):not(.device-iphone):not(.device-android).dashboard-mode {
+            body.dashboard-mode {
                 overflow: visible;
             }
         }
@@ -1072,40 +945,6 @@
     </div>
 
     <script>
-        // ========== DEVICE DETECTION ==========
-        
-        function detectDevice() {
-            const userAgent = navigator.userAgent || navigator.vendor || window.opera;
-            
-            // Detect iOS devices
-            const isIOS = /iPad|iPhone|iPod/.test(userAgent) && !window.MSStream;
-            const isIPad = /iPad/.test(userAgent) || 
-                          (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
-            const isIPhone = /iPhone/.test(userAgent);
-            
-            // Detect Android devices
-            const isAndroid = /android/i.test(userAgent);
-            
-            // Apply appropriate class to body
-            if (isIPad) {
-                document.body.classList.add('device-ipad');
-                console.log('📱 Device detected: iPad');
-            } else if (isIPhone) {
-                document.body.classList.add('device-iphone');
-                console.log('📱 Device detected: iPhone');
-            } else if (isAndroid) {
-                document.body.classList.add('device-android');
-                console.log('📱 Device detected: Android');
-            } else {
-                // Desktop or unknown - use iPad layout
-                document.body.classList.add('device-ipad');
-                console.log('💻 Device detected: Desktop (using iPad layout)');
-            }
-        }
-
-        // Detect device on page load
-        detectDevice();
-
         // ========== AUTHENTICATION CONFIGURATION ==========
         
         const AUTH_CONFIG = {
@@ -1524,16 +1363,18 @@
 
         // ========== IMPROVED HOMEY OUTDOOR SENSORS ==========
 
-        sync function updatePersonalSensors() {
-    console.log('🏠 Updating Homey outdoor sensors via OAuth API...');
+        async function updatePersonalSensors() {
+    console.log('🏠 Updating Homey outdoor sensors via API...');
     
+    // Clear previous content
     document.getElementById('outdoor-temp').textContent = '--°C';
     document.getElementById('outdoor-humidity').textContent = '--%';
     document.getElementById('sensor-status').className = 'status-indicator status-offline';
     
     try {
-        console.log('📡 Calling /api/homey endpoint...');
+        console.log('📡 Fetching data from /api/homey endpoint...');
         
+        // Call the Vercel serverless function
         const response = await fetch('/api/homey');
         
         if (!response.ok) {
@@ -1544,13 +1385,16 @@
         const data = await response.json();
         console.log('✅ Received data from Homey API:', data);
         
+        // Extract and display temperature
         let tempValue = null;
         if (data.temperature !== undefined && data.temperature !== null) {
             tempValue = parseFloat(data.temperature).toFixed(1);
             document.getElementById('outdoor-temp').textContent = tempValue + '°C';
             console.log('✅ Temperature updated:', tempValue + '°C');
             
+            // 🎨 Apply Swix color coding AFTER data retrieval
             setTimeout(() => {
+                console.log('🎨 Applying Swix color to outdoor sensor...');
                 applySwixColorToElement('outdoor-temp', tempValue);
             }, 50);
             
@@ -1562,6 +1406,7 @@
             console.log('⚠️ No temperature data available');
         }
         
+        // Extract and display humidity
         if (data.humidity !== undefined && data.humidity !== null) {
             const humidityValue = Math.round(data.humidity);
             document.getElementById('outdoor-humidity').textContent = humidityValue + '%';
@@ -1571,6 +1416,7 @@
             console.log('⚠️ No humidity data available');
         }
         
+        // Update status to online if we got at least some data
         if (tempValue !== null || data.humidity !== null) {
             document.getElementById('sensor-status').className = 'status-indicator status-online';
             console.log('✅ Homey sensors updated successfully');
@@ -1584,9 +1430,11 @@
         console.error('❌ Error updating Homey sensors:', error.message);
         document.getElementById('sensor-status').className = 'status-indicator status-offline';
         
+        // Show error in sensor display
         document.getElementById('outdoor-temp').textContent = 'Error';
         document.getElementById('outdoor-humidity').textContent = 'Error';
         
+        // Add error message to sensor card
         const sensorGrid = document.querySelector('#sensors-card .sensor-grid');
         let errorDiv = sensorGrid.querySelector('.error-message');
         if (!errorDiv) {
@@ -2363,11 +2211,7 @@
         // ========== DASHBOARD INITIALIZATION ==========
 
         async function initDashboard() {
-            const deviceType = document.body.classList.contains('device-ipad') ? 'iPad' :
-                             document.body.classList.contains('device-iphone') ? 'iPhone' :
-                             document.body.classList.contains('device-android') ? 'Android' : 'Desktop';
-            
-            console.log(`Initializing WK Snow Weather Dashboard for ${deviceType} with REAL-TIME data and official Swix color coding...`);
+            console.log('Initializing WK Snow Weather Dashboard with REAL-TIME data and official Swix color coding...');
             console.log('YR.no forecast location: Mosetertoppen Skistadion (813m elevation)');
             
             updateTimestamp();
