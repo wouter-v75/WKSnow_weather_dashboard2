@@ -68,6 +68,7 @@ async function getAccessToken() {
  */
 async function getDelegationToken(accessToken) {
   try {
+    console.log('Requesting delegation token from Athom API...');
     const response = await fetch('https://api.athom.com/delegation/token?audience=homey', {
       method: 'POST',
       headers: {
@@ -77,10 +78,35 @@ async function getDelegationToken(accessToken) {
     });
 
     if (!response.ok) {
+      const errorText = await response.text();
+      console.error('Delegation token request failed:', {
+        status: response.status,
+        statusText: response.statusText,
+        body: errorText
+      });
       throw new Error(`Delegation token failed: ${response.status}`);
     }
 
-    return await response.text(); // Returns JWT string
+    // Check if response is JSON or plain text
+    const contentType = response.headers.get('content-type');
+    let delegationToken;
+    
+    if (contentType && contentType.includes('application/json')) {
+      const json = await response.json();
+      delegationToken = json.token || json;
+      console.log('Delegation token (JSON):', {
+        hasToken: !!json.token,
+        tokenLength: delegationToken.length
+      });
+    } else {
+      delegationToken = await response.text();
+      console.log('Delegation token (text):', {
+        tokenLength: delegationToken.length,
+        starts: delegationToken.substring(0, 20) + '...'
+      });
+    }
+    
+    return delegationToken;
     
   } catch (error) {
     console.error('Error getting delegation token:', error.message);
@@ -128,6 +154,12 @@ async function getHomeyInfo(accessToken) {
  */
 async function createHomeySession(delegationToken, remoteUrl) {
   try {
+    console.log('Creating Homey session...', {
+      remoteUrl,
+      tokenLength: delegationToken.length,
+      tokenStart: delegationToken.substring(0, 20) + '...'
+    });
+    
     const response = await fetch(`${remoteUrl}/api/manager/users/login`, {
       method: 'POST',
       headers: {
@@ -137,10 +169,19 @@ async function createHomeySession(delegationToken, remoteUrl) {
     });
 
     if (!response.ok) {
+      const errorText = await response.text();
+      console.error('Homey session creation failed:', {
+        status: response.status,
+        statusText: response.statusText,
+        body: errorText,
+        url: `${remoteUrl}/api/manager/users/login`
+      });
       throw new Error(`Homey session creation failed: ${response.status}`);
     }
 
-    return await response.text(); // Returns session token
+    const sessionToken = await response.text();
+    console.log('Homey session created successfully');
+    return sessionToken; // Returns session token
     
   } catch (error) {
     console.error('Error creating Homey session:', error.message);
@@ -236,12 +277,33 @@ export default async function handler(req, res) {
     // Step 3: Get delegation token
     const delegationToken = await getDelegationToken(accessToken);
     
-    // Step 4: Create Homey session
-    const sessionToken = await createHomeySession(delegationToken, remoteUrl);
+    // Step 4: Try using delegation token directly (newer Homey API)
+    // If that fails, fall back to session creation (older API)
+    let authToken = delegationToken;
+    
+    try {
+      console.log('Trying delegation token directly...');
+      // Test if delegation token works directly
+      const testResponse = await fetch(`${remoteUrl}/api/manager/devices/device/${process.env.HOMEY_DEVICE_ID_TEMP}`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${delegationToken}`
+        }
+      });
+      
+      if (!testResponse.ok) {
+        throw new Error('Delegation token not accepted directly');
+      }
+      console.log('✓ Delegation token works directly');
+    } catch (error) {
+      console.log('Delegation token failed, creating session...', error.message);
+      // Fall back to session creation
+      authToken = await createHomeySession(delegationToken, remoteUrl);
+    }
     
     // Step 5: Fetch temperature data
     const tempData = await getDeviceData(
-      sessionToken,
+      authToken,
       remoteUrl,
       process.env.HOMEY_DEVICE_ID_TEMP
     );
@@ -252,7 +314,7 @@ export default async function handler(req, res) {
     
     if (humidityDeviceId && humidityDeviceId !== process.env.HOMEY_DEVICE_ID_TEMP) {
       try {
-        humidityData = await getDeviceData(sessionToken, remoteUrl, humidityDeviceId);
+        humidityData = await getDeviceData(authToken, remoteUrl, humidityDeviceId);
       } catch (error) {
         console.warn('Could not fetch separate humidity sensor:', error.message);
       }
