@@ -1673,39 +1673,7 @@
             }
         }
 
-        # Fix Snow Data Parser - Use Real DOM Structure
-
-## 🎯 The Real Data Structure
-
-The Hafjell website has snow data in this HTML:
-
-```html
-<div class="w--conditions-piste">      <!-- SLOPES = Snow depth -->
-  <span class="w--top">0cm</span>
-  <span class="w--bottom">0cm</span>
-  <h3>Slopes</h3>
-</div>
-
-<div class="w--conditions-lastday">    <!-- LAST DAY = Fresh snow -->
-  <span class="w--top">0cm</span>
-  <span class="w--bottom">0cm</span>
-  <h3>Last day</h3>
-</div>
-
-<div class="w--conditions-terrain">    <!-- TERRAIN = Alternative -->
-  <span class="w--top">5cm</span>
-  <span class="w--bottom">0cm</span>
-  <h3>Terrain</h3>
-</div>
-```
-
----
-
-## ✅ Fixed Parser
-
-Replace the **entire** `parseWeatherDataFromHTML` function with this:
-
-```javascript
+   
         function parseWeatherDataFromHTML(htmlContent) {
             console.log('Parsing weather data from Hafjell HTML...');
             
