@@ -185,14 +185,33 @@ async function createHomeySession(delegationToken, remoteUrl) {
     
     if (contentType && contentType.includes('application/json')) {
       const json = await response.json();
-      sessionToken = json.token || json.bearer_token || JSON.stringify(json);
+      
+      // Token might be in json.token, json.bearer_token, or json itself might be a string
+      if (json.token) {
+        sessionToken = json.token;
+      } else if (json.bearer_token) {
+        sessionToken = json.bearer_token;
+      } else if (typeof json === 'string') {
+        sessionToken = json;
+      } else {
+        // Entire response is the token as JSON string
+        sessionToken = JSON.stringify(json);
+      }
+      
+      // Remove quotes if present (sometimes token is returned as JSON string)
+      sessionToken = sessionToken.replace(/^"(.*)"$/, '$1');
+      
       console.log('Homey session created (JSON):', {
         hasToken: !!json.token,
         hasBearerToken: !!json.bearer_token,
-        keys: Object.keys(json)
+        tokenLength: sessionToken.length,
+        tokenStart: sessionToken.substring(0, 30) + '...'
       });
     } else {
       sessionToken = await response.text();
+      // Remove quotes if present
+      sessionToken = sessionToken.replace(/^"(.*)"$/, '$1');
+      
       console.log('Homey session created (text):', {
         tokenLength: sessionToken.length
       });
@@ -207,58 +226,51 @@ async function createHomeySession(delegationToken, remoteUrl) {
 }
 
 /**
- * Get device data from Homey
+ * Get ALL devices from Homey, then extract specific device data
  */
 async function getDeviceData(sessionToken, remoteUrl, deviceId) {
   try {
-    // Try primary endpoint first
-    let url = `${remoteUrl}/api/manager/devices/device/${deviceId}`;
-    console.log('Fetching device data:', {
-      url,
-      deviceId,
-      tokenLength: sessionToken.length,
-      tokenStart: sessionToken.substring(0, 30) + '...'
-    });
+    // Fetch ALL devices at once (this is more reliable)
+    const url = `${remoteUrl}/api/manager/devices/device`;
+    console.log('Fetching all devices from Homey...');
     
-    let response = await fetch(url, {
+    const response = await fetch(url, {
       method: 'GET',
       headers: {
         'Authorization': `Bearer ${sessionToken}`
       }
     });
 
-    // If primary endpoint fails with 400, try alternative endpoint
-    if (response.status === 400) {
-      console.log('Primary endpoint failed, trying alternative format...');
-      url = `${remoteUrl}/api/manager/devices/${deviceId}`;
-      console.log('Trying alternative URL:', url);
-      
-      response = await fetch(url, {
-        method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${sessionToken}`
-        }
-      });
-    }
-
     if (!response.ok) {
       const errorText = await response.text();
-      console.error('Device fetch failed:', {
+      console.error('Failed to fetch devices:', {
         status: response.status,
         statusText: response.statusText,
-        deviceId,
         url,
         body: errorText
       });
-      throw new Error(`Failed to get device: ${response.status} - ${errorText}`);
+      throw new Error(`Failed to get devices: ${response.status} - ${errorText}`);
     }
 
-    const device = await response.json();
-    console.log('Device data received:', {
-      deviceId,
+    const allDevices = await response.json();
+    console.log('All devices received, total count:', Object.keys(allDevices).length);
+    
+    // Find the specific device by ID
+    const device = allDevices[deviceId];
+    
+    if (!device) {
+      console.error('Device not found in response:', {
+        requestedId: deviceId,
+        availableIds: Object.keys(allDevices).slice(0, 5) // Show first 5
+      });
+      throw new Error(`Device ${deviceId} not found in Homey`);
+    }
+    
+    console.log('Device found:', {
+      id: deviceId,
+      name: device.name,
       hasCapabilitiesObj: !!device.capabilitiesObj,
-      hasCapabilities: !!device.capabilities,
-      capabilities: Object.keys(device.capabilitiesObj || device.capabilities || {})
+      hasCapabilities: !!device.capabilities
     });
     
     // Extract sensor values
