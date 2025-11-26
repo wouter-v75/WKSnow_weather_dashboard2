@@ -1,173 +1,200 @@
 /**
- * Vercel Serverless Function: Homey Cloud API Proxy (FIXED v2)
+ * Vercel Serverless Function: Homey API with Long-Term OAuth Authentication
  * 
- * This version uses the ACTUAL homey-api library (same as setup-homey.js)
- * but with optimizations for serverless environments
- * 
+ * This uses OAuth refresh tokens which never expire (unless revoked or 6 months inactive)
  * Environment variables required in Vercel:
- * - HOMEY_CLIENT_ID (from https://tools.developer.homey.app/api/projects)
+ * - HOMEY_CLIENT_ID (from HomeyScript OAuth app - NOT Web App)
  * - HOMEY_CLIENT_SECRET
- * - HOMEY_USERNAME (your Homey account email)
- * - HOMEY_PASSWORD (your Homey account password)
- * - HOMEY_DEVICE_ID_TEMP (outdoor temperature sensor)
- * - HOMEY_DEVICE_ID_HUMIDITY (outdoor humidity sensor, optional)
+ * - HOMEY_REFRESH_TOKEN (obtained once, then stored)
+ * - HOMEY_DEVICE_ID_TEMP
+ * - HOMEY_DEVICE_ID_HUMIDITY (optional)
  */
 
-const AthomCloudAPI = require('homey-api/lib/AthomCloudAPI');
+const fetch = require('node-fetch');
 
-// Cache for Homey API session (persists across function invocations in same container)
-let cachedHomeyApi = null;
-let cacheTimestamp = null;
-const CACHE_DURATION = 30 * 60 * 1000; // 30 minutes (conservative for serverless)
+// Token cache (persists across function invocations in same container)
+let cachedAccessToken = null;
+let tokenExpiry = null;
 
 /**
- * Get authenticated Homey API with retry logic
+ * Get fresh access token using refresh token
+ * Refresh tokens never expire (unless revoked or 6 months inactive)
  */
-async function getHomeyApiWithRetry(maxRetries = 2) {
+async function getAccessToken() {
+  // Return cached token if still valid (with 5 minute buffer)
   const now = Date.now();
-  
-  // Return cached connection if still valid
-  if (cachedHomeyApi && cacheTimestamp && (now - cacheTimestamp) < CACHE_DURATION) {
-    console.log('✅ Using cached Homey API session');
-    try {
-      // Quick test to ensure session is still valid
-      await cachedHomeyApi.system.getInfo();
-      return cachedHomeyApi;
-    } catch (error) {
-      console.warn('⚠️ Cached session invalid, re-authenticating...');
-      cachedHomeyApi = null;
-      cacheTimestamp = null;
-    }
-  }
-  
-  console.log('🔐 Authenticating with Homey Cloud API...');
-  
-  for (let attempt = 1; attempt <= maxRetries; attempt++) {
-    try {
-      // Create Cloud API instance (same as setup-homey.js)
-      const cloudApi = new AthomCloudAPI({
-        clientId: process.env.HOMEY_CLIENT_ID,
-        clientSecret: process.env.HOMEY_CLIENT_SECRET,
-      });
-
-      console.log(`Attempt ${attempt}/${maxRetries}: Calling authenticateWithPassword...`);
-
-      // Authenticate with username/password
-      // Wrap in a promise with timeout
-      await Promise.race([
-        cloudApi.authenticateWithPassword(
-          process.env.HOMEY_USERNAME,
-          process.env.HOMEY_PASSWORD
-        ),
-        new Promise((_, reject) => 
-          setTimeout(() => reject(new Error('Authentication timeout after 25 seconds')), 25000)
-        )
-      ]);
-
-      console.log('✅ Authentication successful, getting user...');
-
-      // Get user and Homey
-      const user = await Promise.race([
-        cloudApi.getAuthenticatedUser(),
-        new Promise((_, reject) => 
-          setTimeout(() => reject(new Error('Get user timeout after 10 seconds')), 10000)
-        )
-      ]);
-
-      console.log('✅ User retrieved, getting Homey...');
-
-      const homey = await Promise.race([
-        user.getFirstHomey(),
-        new Promise((_, reject) => 
-          setTimeout(() => reject(new Error('Get Homey timeout after 10 seconds')), 10000)
-        )
-      ]);
-
-      console.log('✅ Homey found, creating session...');
-
-      // Create session on Homey
-      const homeyApi = await Promise.race([
-        homey.authenticate(),
-        new Promise((_, reject) => 
-          setTimeout(() => reject(new Error('Session creation timeout after 15 seconds')), 15000)
-        )
-      ]);
-
-      console.log('✅ Homey API session created successfully');
-
-      // Cache the session
-      cachedHomeyApi = homeyApi;
-      cacheTimestamp = now;
-
-      return homeyApi;
-
-    } catch (error) {
-      console.error(`❌ Attempt ${attempt}/${maxRetries} failed:`, error.message);
-      
-      if (attempt === maxRetries) {
-        throw new Error(`Authentication failed after ${maxRetries} attempts: ${error.message}`);
-      }
-      
-      // Wait before retry (exponential backoff)
-      const waitTime = Math.min(1000 * Math.pow(2, attempt - 1), 5000);
-      console.log(`⏳ Waiting ${waitTime}ms before retry...`);
-      await new Promise(resolve => setTimeout(resolve, waitTime));
-    }
+  if (cachedAccessToken && tokenExpiry && (tokenExpiry - now) > 5 * 60 * 1000) {
+    console.log('Using cached access token');
+    return cachedAccessToken;
   }
 
-  throw new Error('Authentication failed: Max retries exceeded');
+  console.log('Refreshing access token...');
+  
+  try {
+    // Exchange refresh token for new access token
+    const response = await fetch('https://api.athom.com/oauth2/token', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'Authorization': 'Basic ' + Buffer.from(
+          `${process.env.HOMEY_CLIENT_ID}:${process.env.HOMEY_CLIENT_SECRET}`
+        ).toString('base64')
+      },
+      body: `grant_type=refresh_token&refresh_token=${process.env.HOMEY_REFRESH_TOKEN}`
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Token refresh failed: ${response.status} - ${errorText}`);
+    }
+
+    const tokenData = await response.json();
+    
+    // Cache the new access token
+    cachedAccessToken = tokenData.access_token;
+    tokenExpiry = now + (tokenData.expires_in * 1000); // Convert seconds to ms
+    
+    console.log('Access token refreshed successfully');
+    return cachedAccessToken;
+    
+  } catch (error) {
+    console.error('Error refreshing token:', error.message);
+    throw error;
+  }
 }
 
 /**
- * Fetch device data from Homey
+ * Get delegation token for Homey access
  */
-async function getDeviceData(homeyApi, deviceId) {
+async function getDelegationToken(accessToken) {
   try {
-    console.log(`📡 Fetching device ${deviceId}...`);
+    const response = await fetch('https://api.athom.com/delegation/token?audience=homey', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'Authorization': `Bearer ${accessToken}`
+      }
+    });
 
-    const device = await Promise.race([
-      homeyApi.devices.getDevice({ id: deviceId }),
-      new Promise((_, reject) => 
-        setTimeout(() => reject(new Error('Device fetch timeout after 10 seconds')), 10000)
-      )
-    ]);
+    if (!response.ok) {
+      throw new Error(`Delegation token failed: ${response.status}`);
+    }
 
-    const caps = device.capabilitiesObj || device.capabilities || {};
+    return await response.text(); // Returns JWT string
     
+  } catch (error) {
+    console.error('Error getting delegation token:', error.message);
+    throw error;
+  }
+}
+
+/**
+ * Get user info and Homey details
+ */
+async function getHomeyInfo(accessToken) {
+  try {
+    const response = await fetch('https://api.athom.com/user/me', {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${accessToken}`
+      }
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to get user info: ${response.status}`);
+    }
+
+    const userData = await response.json();
+    
+    // Get first Homey
+    if (!userData.homeys || userData.homeys.length === 0) {
+      throw new Error('No Homeys found for this account');
+    }
+
+    const homey = userData.homeys[0];
+    return {
+      homeyId: homey._id,
+      remoteUrl: homey.remoteUrl || homey.remoteUrlSecure
+    };
+    
+  } catch (error) {
+    console.error('Error getting Homey info:', error.message);
+    throw error;
+  }
+}
+
+/**
+ * Create session on Homey
+ */
+async function createHomeySession(delegationToken, remoteUrl) {
+  try {
+    const response = await fetch(`${remoteUrl}/api/manager/users/login`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ token: delegationToken })
+    });
+
+    if (!response.ok) {
+      throw new Error(`Homey session creation failed: ${response.status}`);
+    }
+
+    return await response.text(); // Returns session token
+    
+  } catch (error) {
+    console.error('Error creating Homey session:', error.message);
+    throw error;
+  }
+}
+
+/**
+ * Get device data from Homey
+ */
+async function getDeviceData(sessionToken, remoteUrl, deviceId) {
+  try {
+    const response = await fetch(`${remoteUrl}/api/manager/devices/device/${deviceId}`, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${sessionToken}`
+      }
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to get device: ${response.status}`);
+    }
+
+    const device = await response.json();
+    
+    // Extract sensor values
+    const caps = device.capabilitiesObj || device.capabilities || {};
     const data = {};
     
-    // Try different temperature capability names
     if (caps.measure_temperature) {
       data.temperature = caps.measure_temperature.value;
     } else if (caps.temperature) {
       data.temperature = caps.temperature.value;
     }
     
-    // Try different humidity capability names
     if (caps.measure_humidity) {
       data.humidity = caps.measure_humidity.value;
     } else if (caps.humidity) {
       data.humidity = caps.humidity.value;
     }
     
-    console.log(`✅ Device data retrieved:`, data);
     return data;
     
   } catch (error) {
-    console.error(`❌ Error fetching device ${deviceId}:`, error.message);
+    console.error(`Error getting device ${deviceId}:`, error.message);
     throw error;
   }
 }
 
 export default async function handler(req, res) {
-  // Set timeout for entire function
-  const startTime = Date.now();
-  const FUNCTION_TIMEOUT = 55000; // 55 seconds (Vercel limit is 60s)
-
   // Enable CORS
   res.setHeader('Access-Control-Allow-Credentials', true);
   res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,POST');
+  res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'X-Requested-With, Content-Type, Accept');
 
   // Handle preflight
@@ -185,8 +212,7 @@ export default async function handler(req, res) {
     const requiredEnvVars = [
       'HOMEY_CLIENT_ID',
       'HOMEY_CLIENT_SECRET',
-      'HOMEY_USERNAME',
-      'HOMEY_PASSWORD',
+      'HOMEY_REFRESH_TOKEN',
       'HOMEY_DEVICE_ID_TEMP'
     ];
 
@@ -195,94 +221,62 @@ export default async function handler(req, res) {
       return res.status(500).json({
         error: 'Configuration error',
         message: `Missing environment variables: ${missingVars.join(', ')}`,
-        note: 'Please configure these in Vercel environment variables',
-        setup: {
-          step1: 'Register app at: https://tools.developer.homey.app/api/projects',
-          step2: 'Set HOMEY_CLIENT_ID and HOMEY_CLIENT_SECRET from your registered app',
-          step3: 'Set HOMEY_USERNAME and HOMEY_PASSWORD (your Homey account credentials)',
-          step4: 'Run setup-homey.js to find your HOMEY_DEVICE_ID_TEMP'
-        }
+        note: 'Run the initial setup to get your refresh token'
       });
     }
 
-    console.log('📡 Fetching Homey sensor data via Cloud API (using homey-api library)...');
+    console.log('Starting OAuth flow with refresh token...');
     
-    // Check if we're approaching timeout
-    if (Date.now() - startTime > FUNCTION_TIMEOUT - 10000) {
-      throw new Error('Function timeout approaching');
-    }
-
-    // Get authenticated Homey API
-    const homeyApi = await getHomeyApiWithRetry();
+    // Step 1: Get fresh access token using refresh token
+    const accessToken = await getAccessToken();
     
-    // Check timeout again
-    if (Date.now() - startTime > FUNCTION_TIMEOUT - 5000) {
-      throw new Error('Function timeout approaching after authentication');
-    }
-
-    // Fetch temperature data
-    const tempDeviceId = process.env.HOMEY_DEVICE_ID_TEMP;
-    const tempData = await getDeviceData(homeyApi, tempDeviceId);
+    // Step 2: Get Homey info
+    const { remoteUrl } = await getHomeyInfo(accessToken);
     
-    // Fetch humidity data (may be from same or different device)
-    let humidityData = tempData; // Default to same device
+    // Step 3: Get delegation token
+    const delegationToken = await getDelegationToken(accessToken);
+    
+    // Step 4: Create Homey session
+    const sessionToken = await createHomeySession(delegationToken, remoteUrl);
+    
+    // Step 5: Fetch temperature data
+    const tempData = await getDeviceData(
+      sessionToken,
+      remoteUrl,
+      process.env.HOMEY_DEVICE_ID_TEMP
+    );
+    
+    // Step 6: Fetch humidity data (may be same or different device)
+    let humidityData = tempData;
     const humidityDeviceId = process.env.HOMEY_DEVICE_ID_HUMIDITY;
     
-    if (humidityDeviceId && humidityDeviceId !== tempDeviceId) {
+    if (humidityDeviceId && humidityDeviceId !== process.env.HOMEY_DEVICE_ID_TEMP) {
       try {
-        humidityData = await getDeviceData(homeyApi, humidityDeviceId);
+        humidityData = await getDeviceData(sessionToken, remoteUrl, humidityDeviceId);
       } catch (error) {
-        console.warn('⚠️ Could not fetch separate humidity sensor, using temp sensor:', error.message);
+        console.warn('Could not fetch separate humidity sensor:', error.message);
       }
     }
     
-    // Combine data
+    // Return combined data
     const responseData = {
       temperature: tempData.temperature,
       humidity: humidityData.humidity || tempData.humidity,
       timestamp: new Date().toISOString(),
-      source: 'homey-cloud-api',
-      method: 'homey-api-library',
-      processingTime: `${Date.now() - startTime}ms`
+      source: 'homey-oauth-longterm'
     };
     
-    console.log('✅ Successfully fetched sensor data:', responseData);
+    console.log('Successfully fetched sensor data:', responseData);
     
     return res.status(200).json(responseData);
     
   } catch (error) {
-    console.error('❌ Homey Cloud API Error:', error);
+    console.error('Homey OAuth API Error:', error);
     
-    // Clear cache on authentication errors
-    if (error.message.includes('Authentication') || 
-        error.message.includes('401') || 
-        error.message.includes('invalid') ||
-        error.message.includes('credentials')) {
-      console.log('🧹 Clearing cached session due to auth error');
-      cachedHomeyApi = null;
-      cacheTimestamp = null;
-    }
-    
-    // Determine appropriate status code
-    let statusCode = 500;
-    if (error.message.includes('timeout')) {
-      statusCode = 504; // Gateway Timeout
-    } else if (error.message.includes('Authentication') || error.message.includes('401')) {
-      statusCode = 401; // Unauthorized
-    }
-    
-    return res.status(statusCode).json({
+    return res.status(500).json({
       error: 'Failed to fetch Homey data',
       message: error.message,
-      timestamp: new Date().toISOString(),
-      processingTime: `${Date.now() - startTime}ms`,
-      hints: [
-        'Check that HOMEY_CLIENT_ID and HOMEY_CLIENT_SECRET are correct',
-        'Verify HOMEY_USERNAME and HOMEY_PASSWORD are correct',
-        'Ensure your Homey is online at https://my.homey.app',
-        'First request may take 20-30 seconds (authentication)',
-        'Check Vercel function logs for detailed error information'
-      ]
+      timestamp: new Date().toISOString()
     });
   }
 }
