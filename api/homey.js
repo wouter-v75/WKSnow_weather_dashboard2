@@ -179,9 +179,26 @@ async function createHomeySession(delegationToken, remoteUrl) {
       throw new Error(`Homey session creation failed: ${response.status}`);
     }
 
-    const sessionToken = await response.text();
-    console.log('Homey session created successfully');
-    return sessionToken; // Returns session token
+    // Session token might be JSON or plain text
+    const contentType = response.headers.get('content-type');
+    let sessionToken;
+    
+    if (contentType && contentType.includes('application/json')) {
+      const json = await response.json();
+      sessionToken = json.token || json.bearer_token || JSON.stringify(json);
+      console.log('Homey session created (JSON):', {
+        hasToken: !!json.token,
+        hasBearerToken: !!json.bearer_token,
+        keys: Object.keys(json)
+      });
+    } else {
+      sessionToken = await response.text();
+      console.log('Homey session created (text):', {
+        tokenLength: sessionToken.length
+      });
+    }
+    
+    return sessionToken;
     
   } catch (error) {
     console.error('Error creating Homey session:', error.message);
@@ -194,18 +211,55 @@ async function createHomeySession(delegationToken, remoteUrl) {
  */
 async function getDeviceData(sessionToken, remoteUrl, deviceId) {
   try {
-    const response = await fetch(`${remoteUrl}/api/manager/devices/device/${deviceId}`, {
+    // Try primary endpoint first
+    let url = `${remoteUrl}/api/manager/devices/device/${deviceId}`;
+    console.log('Fetching device data:', {
+      url,
+      deviceId,
+      tokenLength: sessionToken.length,
+      tokenStart: sessionToken.substring(0, 30) + '...'
+    });
+    
+    let response = await fetch(url, {
       method: 'GET',
       headers: {
         'Authorization': `Bearer ${sessionToken}`
       }
     });
 
+    // If primary endpoint fails with 400, try alternative endpoint
+    if (response.status === 400) {
+      console.log('Primary endpoint failed, trying alternative format...');
+      url = `${remoteUrl}/api/manager/devices/${deviceId}`;
+      console.log('Trying alternative URL:', url);
+      
+      response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${sessionToken}`
+        }
+      });
+    }
+
     if (!response.ok) {
-      throw new Error(`Failed to get device: ${response.status}`);
+      const errorText = await response.text();
+      console.error('Device fetch failed:', {
+        status: response.status,
+        statusText: response.statusText,
+        deviceId,
+        url,
+        body: errorText
+      });
+      throw new Error(`Failed to get device: ${response.status} - ${errorText}`);
     }
 
     const device = await response.json();
+    console.log('Device data received:', {
+      deviceId,
+      hasCapabilitiesObj: !!device.capabilitiesObj,
+      hasCapabilities: !!device.capabilities,
+      capabilities: Object.keys(device.capabilitiesObj || device.capabilities || {})
+    });
     
     // Extract sensor values
     const caps = device.capabilitiesObj || device.capabilities || {};
@@ -223,6 +277,7 @@ async function getDeviceData(sessionToken, remoteUrl, deviceId) {
       data.humidity = caps.humidity.value;
     }
     
+    console.log('Extracted sensor data:', data);
     return data;
     
   } catch (error) {
