@@ -34,24 +34,35 @@ export default async function handler(req, res) {
     }
 
     console.log('Exchanging authorization code for tokens...');
+    console.log('Request details:', {
+      codeLength: code.length,
+      clientIdLength: clientId.length,
+      redirectUri: redirectUri
+    });
 
     // Exchange authorization code for tokens
+    // Must include redirect_uri that matches the authorization request
     const tokenResponse = await fetch('https://api.athom.com/oauth2/token', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/x-www-form-urlencoded',
         'Authorization': 'Basic ' + Buffer.from(`${clientId}:${clientSecret}`).toString('base64')
       },
-      body: `grant_type=authorization_code&authorization_code=${encodeURIComponent(code)}`
+      body: `grant_type=authorization_code&authorization_code=${encodeURIComponent(code)}&redirect_uri=${encodeURIComponent(redirectUri)}`
     });
 
     if (!tokenResponse.ok) {
       const errorText = await tokenResponse.text();
-      console.error('Token exchange failed:', errorText);
+      console.error('Token exchange failed:', {
+        status: tokenResponse.status,
+        statusText: tokenResponse.statusText,
+        body: errorText
+      });
       
       return res.status(tokenResponse.status).json({
         error: 'Token exchange failed',
         message: errorText,
+        status: tokenResponse.status,
         details: 'Check that your Client ID and Client Secret are correct'
       });
     }
