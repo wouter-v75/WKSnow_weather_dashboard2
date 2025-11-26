@@ -1673,96 +1673,80 @@
             }
         }
 
+        # Fix Snow Data Parser - Use Real DOM Structure
+
+## 🎯 The Real Data Structure
+
+The Hafjell website has snow data in this HTML:
+
+```html
+<div class="w--conditions-piste">      <!-- SLOPES = Snow depth -->
+  <span class="w--top">0cm</span>
+  <span class="w--bottom">0cm</span>
+  <h3>Slopes</h3>
+</div>
+
+<div class="w--conditions-lastday">    <!-- LAST DAY = Fresh snow -->
+  <span class="w--top">0cm</span>
+  <span class="w--bottom">0cm</span>
+  <h3>Last day</h3>
+</div>
+
+<div class="w--conditions-terrain">    <!-- TERRAIN = Alternative -->
+  <span class="w--top">5cm</span>
+  <span class="w--bottom">0cm</span>
+  <h3>Terrain</h3>
+</div>
+```
+
+---
+
+## ✅ Fixed Parser
+
+Replace the **entire** `parseWeatherDataFromHTML` function with this:
+
+```javascript
         function parseWeatherDataFromHTML(htmlContent) {
             console.log('Parsing weather data from Hafjell HTML...');
             
             try {
-                // Create a temporary DOM parser
                 const parser = new DOMParser();
                 const doc = parser.parseFromString(htmlContent, 'text/html');
-                
-                // Get all text content for analysis
                 const allText = doc.body.textContent.replace(/\s+/g, ' ').trim();
-                console.log('Full page text sample:', allText.substring(0, 500));
                 
-                // Initialize weather data structure
+                // Initialize with '--'
                 const weatherData = {
                     top: {
                         temperature: '--',
-                        condition: 'Loading...',
-                        wind: '0.0',
-                        snow: '0',
-                        snowLastDay: '0'
+                        condition: 'Unknown',
+                        wind: '--',
+                        snow: '--',
+                        snowLastDay: '--'
                     },
                     bottom: {
                         temperature: '--',
-                        condition: 'Loading...',
-                        wind: '0.0',
-                        snow: '0',
-                        snowLastDay: '0'
+                        condition: 'Unknown',
+                        wind: '--',
+                        snow: '--',
+                        snowLastDay: '--'
                     }
                 };
 
-                console.log('Looking for weather data pattern in Hafjell content...');
-                
-                // Look for the specific pattern from Hafjell website:
-                // [On the top] [On the bottom] Current conditions [weather] [weather] [temp1] [temp2] [wind1]m/s [wind2]m/s
-                
-                // Method 1: Find temperature and wind data using known patterns
-                // Look for pattern like "-6 -8 5.6m/s 2m/s" or similar (handles negative temps)
-                
-                // Find temperatures (including negatives) followed by potential wind data
+                // Parse temperature and wind from text pattern
                 const tempWindPattern = /(-?\d{1,2})\s+(-?\d{1,2})\s+(\d+\.?\d*)m\/s\s+(\d+\.?\d*)m\/s/;
-                const tempWindMatch = allText.match(tempWindPattern);
+                const match = allText.match(tempWindPattern);
                 
-                if (tempWindMatch) {
-                    console.log('Found temperature and wind pattern:', tempWindMatch);
-                    weatherData.top.temperature = tempWindMatch[1];
-                    weatherData.bottom.temperature = tempWindMatch[2];
-                    weatherData.top.wind = tempWindMatch[3];
-                    weatherData.bottom.wind = tempWindMatch[4];
-                    
-                    console.log(`Extracted: Top ${tempWindMatch[1]}°C, ${tempWindMatch[3]}m/s | Bottom ${tempWindMatch[2]}°C, ${tempWindMatch[4]}m/s`);
+                if (match) {
+                    weatherData.top.temperature = match[1];
+                    weatherData.bottom.temperature = match[2];
+                    weatherData.top.wind = match[3];
+                    weatherData.bottom.wind = match[4];
+                    console.log(`✅ Temp/Wind: Top ${match[1]}°C ${match[3]}m/s, Bottom ${match[2]}°C ${match[4]}m/s`);
                 } else {
-                    console.log('Temperature/wind pattern not found, trying alternative methods...');
-                    
-                    // Method 2: Look for individual temperature and wind values
-                    // Find all temperatures on page (including negatives)
-                    const allTemps = allText.match(/-?\d{1,2}(?=°|C|\s)/g);
-                    const reasonableTemps = allTemps ? allTemps.filter(temp => {
-                        const num = parseInt(temp);
-                        return num >= -30 && num <= 20; // Reasonable ski resort temperature range
-                    }).map(t => parseInt(t)) : [];
-                    
-                    console.log('All reasonable temperatures found:', reasonableTemps);
-                    
-                    // Find all wind speeds
-                    const windMatches = allText.match(/(\d+\.?\d*)\s*m\/s/g);
-                    console.log('All wind speeds found:', windMatches);
-                    
-                    if (reasonableTemps.length >= 2) {
-                        // Remove duplicates and sort
-                        const temps = [...new Set(reasonableTemps)];
-                        temps.sort((a, b) => a - b); // Sort ascending (coldest first)
-                        
-                        // Assign first two distinct temperatures found
-                        weatherData.top.temperature = temps[0].toString();
-                        weatherData.bottom.temperature = temps[1].toString();
-                        console.log(`Assigned temperatures: Top ${weatherData.top.temperature}°C, Bottom ${weatherData.bottom.temperature}°C`);
-                    } else if (reasonableTemps.length === 1) {
-                        // Only one temperature found
-                        console.log('Only one temperature found:', reasonableTemps[0]);
-                    }
-                    
-                    if (windMatches && windMatches.length >= 2) {
-                        const windSpeeds = windMatches.map(w => w.replace(/\s*m\/s/, ''));
-                        weatherData.top.wind = windSpeeds[0];
-                        weatherData.bottom.wind = windSpeeds[1];
-                        console.log(`Assigned wind speeds: Top ${weatherData.top.wind}m/s, Bottom ${weatherData.bottom.wind}m/s`);
-                    }
+                    console.log('⚠️ Could not parse temperature/wind');
                 }
                 
-                // Method 3: Look for weather conditions
+                // Parse weather condition
                 if (allText.includes('Mostly sunny')) {
                     weatherData.top.condition = 'Mostly sunny';
                     weatherData.bottom.condition = 'Mostly sunny';
@@ -1775,67 +1759,97 @@
                 } else if (allText.includes('Clear')) {
                     weatherData.top.condition = 'Clear';
                     weatherData.bottom.condition = 'Clear';
-                } else {
-                    weatherData.top.condition = 'Partly cloudy';
-                    weatherData.bottom.condition = 'Partly cloudy';
                 }
                 
-                // Method 4: Look for snow data
-                const snowMatches = allText.match(/(\d+)cm/g);
-                if (snowMatches) {
-                    const snowDepths = snowMatches.map(s => s.replace('cm', ''));
-                    console.log('Snow depths found:', snowDepths);
+                // ========== PARSE SNOW DATA FROM DOM STRUCTURE ==========
+                
+                // Method 1: Parse "Slopes" for snow depth
+                const pisteSectionSlopes = doc.querySelector('.w--conditions-piste');
+                if (pisteSectionSlopes) {
+                    const topSpan = pisteSectionSlopes.querySelector('.w--top');
+                    const bottomSpan = pisteSectionSlopes.querySelector('.w--bottom');
                     
-                    // Find the most reasonable snow depth (usually 50-100cm in winter)
-                    const reasonableSnow = snowDepths.find(s => parseInt(s) >= 50 && parseInt(s) <= 150);
-                    if (reasonableSnow) {
-                        weatherData.top.snow = reasonableSnow;
-                        weatherData.bottom.snow = reasonableSnow;
-                    } else if (snowDepths.length > 0) {
-                        weatherData.top.snow = snowDepths[0];
-                        weatherData.bottom.snow = snowDepths[0];
+                    if (topSpan && topSpan.textContent) {
+                        const topValue = topSpan.textContent.replace(/[^\d]/g, '');
+                        if (topValue) {
+                            weatherData.top.snow = topValue;
+                            console.log(`✅ Snow depth (Slopes) Top: ${topValue} cm`);
+                        }
+                    }
+                    
+                    if (bottomSpan && bottomSpan.textContent) {
+                        const bottomValue = bottomSpan.textContent.replace(/[^\d]/g, '');
+                        if (bottomValue) {
+                            weatherData.bottom.snow = bottomValue;
+                            console.log(`✅ Snow depth (Slopes) Bottom: ${bottomValue} cm`);
+                        }
+                    }
+                } else {
+                    console.log('⚠️ Could not find .w--conditions-piste section');
+                }
+                
+                // Method 2: Parse "Last day" for fresh snow
+                const lastDaySection = doc.querySelector('.w--conditions-lastday');
+                if (lastDaySection) {
+                    const topSpan = lastDaySection.querySelector('.w--top');
+                    const bottomSpan = lastDaySection.querySelector('.w--bottom');
+                    
+                    if (topSpan && topSpan.textContent) {
+                        const topValue = topSpan.textContent.replace(/[^\d]/g, '');
+                        if (topValue) {
+                            weatherData.top.snowLastDay = topValue;
+                            console.log(`✅ Fresh snow (Last day) Top: ${topValue} cm`);
+                        }
+                    }
+                    
+                    if (bottomSpan && bottomSpan.textContent) {
+                        const bottomValue = bottomSpan.textContent.replace(/[^\d]/g, '');
+                        if (bottomValue) {
+                            weatherData.bottom.snowLastDay = bottomValue;
+                            console.log(`✅ Fresh snow (Last day) Bottom: ${bottomValue} cm`);
+                        }
+                    }
+                } else {
+                    console.log('⚠️ Could not find .w--conditions-lastday section');
+                }
+                
+                // Fallback: Try "Terrain" if Slopes not available
+                if (weatherData.top.snow === '--' || weatherData.bottom.snow === '--') {
+                    const terrainSection = doc.querySelector('.w--conditions-terrain');
+                    if (terrainSection) {
+                        const topSpan = terrainSection.querySelector('.w--top');
+                        const bottomSpan = terrainSection.querySelector('.w--bottom');
+                        
+                        if (topSpan && topSpan.textContent && weatherData.top.snow === '--') {
+                            const topValue = topSpan.textContent.replace(/[^\d]/g, '');
+                            if (topValue) {
+                                weatherData.top.snow = topValue;
+                                console.log(`✅ Snow depth (Terrain fallback) Top: ${topValue} cm`);
+                            }
+                        }
+                        
+                        if (bottomSpan && bottomSpan.textContent && weatherData.bottom.snow === '--') {
+                            const bottomValue = bottomSpan.textContent.replace(/[^\d]/g, '');
+                            if (bottomValue) {
+                                weatherData.bottom.snow = bottomValue;
+                                console.log(`✅ Snow depth (Terrain fallback) Bottom: ${bottomValue} cm`);
+                            }
+                        }
                     }
                 }
                 
-                // Set fresh snow (last day) - typically small amount
-                weatherData.top.snowLastDay = Math.floor(Math.random() * 3).toString();
-                weatherData.bottom.snowLastDay = weatherData.top.snowLastDay;
-                
-                // NO FALLBACK TEMPERATURES - show dashes if parsing failed
-                if (weatherData.top.temperature === '--' || weatherData.bottom.temperature === '--') {
-                    console.log('⚠️ Temperature parsing failed - showing dashes');
-                }
-                
-                if (weatherData.top.snow === '0') {
-                    weatherData.top.snow = '65';
-                    weatherData.bottom.snow = '65';
-                }
-
-                console.log('Final parsed weather data:', weatherData);
+                console.log('📊 Final parsed data:', weatherData);
                 return weatherData;
                 
-            } catch (parseError) {
-                console.error('Error parsing weather HTML content:', parseError);
-                
-                // Return dashes if parsing completely fails - NO FALLBACK VALUES
+            } catch (error) {
+                console.error('❌ Parse error:', error);
                 return {
-                    top: {
-                        temperature: '--',
-                        condition: 'Partly cloudy',
-                        wind: '--',
-                        snow: '--',
-                        snowLastDay: '0'
-                    },
-                    bottom: {
-                        temperature: '--',
-                        condition: 'Partly cloudy',
-                        wind: '--',
-                        snow: '--',
-                        snowLastDay: '0'
-                    }
+                    top: { temperature: '--', condition: 'Error', wind: '--', snow: '--', snowLastDay: '--' },
+                    bottom: { temperature: '--', condition: 'Error', wind: '--', snow: '--', snowLastDay: '--' }
                 };
             }
         }
+
 
         // ========== HAFJELL LIFT STATUS (REAL-TIME) ==========
 
