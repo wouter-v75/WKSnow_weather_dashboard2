@@ -48,7 +48,7 @@ export default async function handler(req, res) {
         'Content-Type': 'application/x-www-form-urlencoded',
         'Authorization': 'Basic ' + Buffer.from(`${clientId}:${clientSecret}`).toString('base64')
       },
-      body: `grant_type=authorization_code&authorization_code=${encodeURIComponent(code)}&redirect_uri=${encodeURIComponent(redirectUri)}`
+      body: `grant_type=authorization_code&code=${encodeURIComponent(code)}&redirect_uri=${encodeURIComponent(redirectUri)}`
     });
 
     if (!tokenResponse.ok) {
@@ -88,3 +88,4 @@ export default async function handler(req, res) {
     });
   }
 }
+
