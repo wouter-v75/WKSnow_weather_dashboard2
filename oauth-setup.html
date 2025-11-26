@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Homey OAuth Setup - WK Weather Dashboard</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            padding: 20px;
+        }
+        
+        .container {
+            background: rgba(255, 255, 255, 0.95);
+            padding: 3rem;
+            border-radius: 20px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+            max-width: 600px;
+            width: 100%;
+        }
+        
+        h1 {
+            color: #667eea;
+            margin-bottom: 1rem;
+            text-align: center;
+        }
+        
+        .step {
+            background: #f8f9fa;
+            padding: 1.5rem;
+            border-radius: 10px;
+            margin: 1rem 0;
+            border-left: 4px solid #667eea;
+        }
+        
+        .step h3 {
+            color: #667eea;
+            margin-top: 0;
+        }
+        
+        .input-group {
+            margin: 1rem 0;
+        }
+        
+        label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-weight: 600;
+            color: #333;
+        }
+        
+        input {
+            width: 100%;
+            padding: 0.75rem;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            font-size: 1rem;
+            box-sizing: border-box;
+        }
+        
+        input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+        
+        button {
+            width: 100%;
+            padding: 1rem;
+            background: #667eea;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 1.1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            margin-top: 1rem;
+        }
+        
+        button:hover {
+            background: #5568d3;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+        }
+        
+        button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+            transform: none;
+        }
+        
+        .info {
+            background: #e3f2fd;
+            padding: 1rem;
+            border-radius: 8px;
+            border-left: 4px solid #2196f3;
+            margin: 1rem 0;
+        }
+        
+        .warning {
+            background: #fff3e0;
+            padding: 1rem;
+            border-radius: 8px;
+            border-left: 4px solid #ff9800;
+            margin: 1rem 0;
+        }
+        
+        .token-display {
+            background: #f5f5f5;
+            padding: 1rem;
+            border-radius: 8px;
+            font-family: monospace;
+            word-break: break-all;
+            margin: 1rem 0;
+            border: 2px solid #4caf50;
+        }
+        
+        .hidden {
+            display: none;
+        }
+        
+        code {
+            background: #f5f5f5;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-family: monospace;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🏠 Homey OAuth Setup</h1>
+        
+        <!-- Step 1: Enter credentials -->
+        <div id="step1">
+            <div class="info">
+                <strong>One-Time Setup</strong><br>
+                This will connect your dashboard to Homey using the official OAuth2 flow.
+                You'll get a refresh token that never expires!
+            </div>
+            
+            <div class="step">
+                <h3>📋 Enter Your OAuth Credentials</h3>
+                <p>Get these from: <a href="https://tools.developer.homey.app/api/clients" target="_blank">Homey Developer Tools</a></p>
+                
+                <div class="input-group">
+                    <label for="clientId">Client ID:</label>
+                    <input type="text" id="clientId" placeholder="Enter your Client ID">
+                </div>
+                
+                <div class="input-group">
+                    <label for="clientSecret">Client Secret:</label>
+                    <input type="text" id="clientSecret" placeholder="Enter your Client Secret">
+                </div>
+                
+                <button onclick="startOAuth()">Start OAuth Authorization</button>
+            </div>
+        </div>
+        
+        <!-- Step 2: Handle callback -->
+        <div id="step2" class="hidden">
+            <div class="step">
+                <h3>🔄 Processing Authorization...</h3>
+                <p>Exchanging authorization code for tokens...</p>
+            </div>
+        </div>
+        
+        <!-- Step 3: Display tokens -->
+        <div id="step3" class="hidden">
+            <div class="step">
+                <h3>🎉 Success! Your Refresh Token</h3>
+                
+                <p><strong>Copy this refresh token and add it to Vercel:</strong></p>
+                
+                <div class="token-display" id="refreshTokenDisplay"></div>
+                
+                <button onclick="copyToken()">📋 Copy Refresh Token</button>
+                
+                <div class="warning" style="margin-top: 2rem;">
+                    <strong>⚠️ Important:</strong><br>
+                    1. This refresh token NEVER expires (unless revoked or 6 months inactive)<br>
+                    2. Keep it secret - it has full access to your Homey!<br>
+                    3. Add it to Vercel environment variables as <code>HOMEY_REFRESH_TOKEN</code>
+                </div>
+                
+                <div class="info" style="margin-top: 1rem;">
+                    <strong>Vercel Environment Variables Needed:</strong><br><br>
+                    <code>HOMEY_CLIENT_ID</code> = <span id="finalClientId"></span><br>
+                    <code>HOMEY_CLIENT_SECRET</code> = <span id="finalClientSecret"></span><br>
+                    <code>HOMEY_REFRESH_TOKEN</code> = <span id="finalRefreshToken"></span><br>
+                    <code>HOMEY_DEVICE_ID_TEMP</code> = your_temp_sensor_id<br>
+                    <code>HOMEY_DEVICE_ID_HUMIDITY</code> = your_humidity_sensor_id
+                </div>
+            </div>
+        </div>
+        
+        <!-- Error display -->
+        <div id="error" class="hidden">
+            <div class="step" style="border-left-color: #f44336;">
+                <h3 style="color: #f44336;">❌ Error</h3>
+                <p id="errorMessage"></p>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        // Configuration
+        // Use the actual deployed domain for redirect URI
+        const REDIRECT_URI = 'https://wksnowdashboard.wvsailing.co.uk/oauth-setup.html';
+        const AUTH_URL = 'https://api.athom.com/oauth2/authorise';
+        const TOKEN_URL = '/api/oauth-callback'; // Vercel serverless function
+        
+        // Store credentials in sessionStorage
+        function startOAuth() {
+            const clientId = document.getElementById('clientId').value.trim();
+            const clientSecret = document.getElementById('clientSecret').value.trim();
+            
+            if (!clientId || !clientSecret) {
+                showError('Please enter both Client ID and Client Secret');
+                return;
+            }
+            
+            // Store credentials for callback
+            sessionStorage.setItem('homey_client_id', clientId);
+            sessionStorage.setItem('homey_client_secret', clientSecret);
+            
+            // Build authorization URL
+            const params = new URLSearchParams({
+                response_type: 'code',
+                client_id: clientId,
+                redirect_uri: REDIRECT_URI,
+                state: Math.random().toString(36).substring(7)
+            });
+            
+            // Store state for verification
+            sessionStorage.setItem('oauth_state', params.get('state'));
+            
+            // Redirect to Homey authorization page
+            window.location.href = `${AUTH_URL}?${params.toString()}`;
+        }
+        
+        // Handle OAuth callback
+        async function handleCallback() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const code = urlParams.get('code');
+            const state = urlParams.get('state');
+            const error = urlParams.get('error');
+            
+            if (error) {
+                showError(`Authorization failed: ${error}`);
+                return;
+            }
+            
+            if (!code) {
+                return; // Not a callback, show step 1
+            }
+            
+            // Verify state
+            const savedState = sessionStorage.getItem('oauth_state');
+            if (state !== savedState) {
+                showError('Invalid state parameter - possible CSRF attack');
+                return;
+            }
+            
+            // Get stored credentials
+            const clientId = sessionStorage.getItem('homey_client_id');
+            const clientSecret = sessionStorage.getItem('homey_client_secret');
+            
+            if (!clientId || !clientSecret) {
+                showError('Missing credentials - please start over');
+                return;
+            }
+            
+            // Show processing
+            document.getElementById('step1').classList.add('hidden');
+            document.getElementById('step2').classList.remove('hidden');
+            
+            try {
+                // Exchange code for tokens via our serverless function
+                const response = await fetch(TOKEN_URL, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        code: code,
+                        clientId: clientId,
+                        clientSecret: clientSecret,
+                        redirectUri: REDIRECT_URI
+                    })
+                });
+                
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.error || 'Token exchange failed');
+                }
+                
+                const tokens = await response.json();
+                
+                // Display success
+                displayTokens(tokens.refresh_token, clientId, clientSecret);
+                
+                // Clean up
+                sessionStorage.clear();
+                
+            } catch (error) {
+                showError(`Failed to exchange code for tokens: ${error.message}`);
+            }
+        }
+        
+        function displayTokens(refreshToken, clientId, clientSecret) {
+            document.getElementById('step2').classList.add('hidden');
+            document.getElementById('step3').classList.remove('hidden');
+            
+            document.getElementById('refreshTokenDisplay').textContent = refreshToken;
+            document.getElementById('finalClientId').textContent = clientId;
+            document.getElementById('finalClientSecret').textContent = '***' + clientSecret.slice(-8);
+            document.getElementById('finalRefreshToken').textContent = refreshToken.substring(0, 20) + '...';
+            
+            // Store for copy function
+            window.refreshToken = refreshToken;
+        }
+        
+        function copyToken() {
+            const token = window.refreshToken;
+            navigator.clipboard.writeText(token).then(() => {
+                const btn = event.target;
+                const originalText = btn.textContent;
+                btn.textContent = '✅ Copied!';
+                setTimeout(() => {
+                    btn.textContent = originalText;
+                }, 2000);
+            });
+        }
+        
+        function showError(message) {
+            document.getElementById('errorMessage').textContent = message;
+            document.getElementById('error').classList.remove('hidden');
+            document.getElementById('step1').classList.add('hidden');
+            document.getElementById('step2').classList.add('hidden');
+        }
+        
+        // Check if this is a callback on page load
+        window.addEventListener('DOMContentLoaded', handleCallback);
+    </script>
+</body>
+</html>
