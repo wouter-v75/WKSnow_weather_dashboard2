@@ -1364,271 +1364,90 @@
         // ========== IMPROVED HOMEY OUTDOOR SENSORS ==========
 
         async function updatePersonalSensors() {
-            console.log('🏠 Updating Homey outdoor sensors...');
-            
-            // Clear previous content
-            document.getElementById('outdoor-temp').textContent = '--°C';
-            document.getElementById('outdoor-humidity').textContent = '--%';
-            document.getElementById('sensor-status').className = 'status-indicator status-offline';
-            
-            try {
-                // Check if Homey is configured
-                if (!isHomeyConfigured()) {
-                    throw new Error('Homey not configured - please set up your Homey credentials');
-                }
-                
-                console.log('📡 Fetching data from configured Homey API...');
-                
-                // Get temperature data
-                let tempData = null;
-                let humidityData = null;
-                
-                if (CONFIG.homey.devices.outdoorTempSensor) {
-                    console.log('🌡️ Getting temperature from device:', CONFIG.homey.devices.outdoorTempSensor);
-                    tempData = await getHomeyDeviceData(CONFIG.homey.devices.outdoorTempSensor);
-                }
-                
-                // Get humidity data (may be from same sensor or different one)
-                const humidityDeviceId = CONFIG.homey.devices.outdoorHumiditySensor || CONFIG.homey.devices.outdoorTempSensor;
-                if (humidityDeviceId && humidityDeviceId !== CONFIG.homey.devices.outdoorTempSensor) {
-                    console.log('💧 Getting humidity from separate device:', humidityDeviceId);
-                    humidityData = await getHomeyDeviceData(humidityDeviceId);
-                } else if (tempData) {
-                    console.log('💧 Using humidity from temperature sensor');
-                    humidityData = tempData;
-                }
-                
-                // Extract and display temperature
-                let tempValue = null;
-                if (tempData && (tempData.temperature !== undefined || tempData.temp !== undefined)) {
-                    tempValue = (tempData.temperature || tempData.temp).toFixed(1);
-                    document.getElementById('outdoor-temp').textContent = tempValue + '°C';
-                    console.log('✅ Temperature updated:', tempValue + '°C');
-                    
-                    // 🎨 Apply Swix color coding AFTER data retrieval - with delay to ensure DOM is updated
-                    setTimeout(() => {
-                        console.log('🎨 Applying Swix color to outdoor sensor...');
-                        applySwixColorToElement('outdoor-temp', tempValue);
-                    }, 50);
-                    
-                    // Additional backup color application
-                    setTimeout(() => {
-                        applySwixColorToElement('outdoor-temp', tempValue);
-                    }, 500);
-                } else {
-                    document.getElementById('outdoor-temp').textContent = 'No data';
-                    console.log('⚠️ No temperature data available');
-                }
-                
-                // Extract and display humidity
-                if (humidityData && (humidityData.humidity !== undefined)) {
-                    const humidityValue = Math.round(humidityData.humidity);
-                    document.getElementById('outdoor-humidity').textContent = humidityValue + '%';
-                    console.log('✅ Humidity updated:', humidityValue + '%');
-                } else {
-                    document.getElementById('outdoor-humidity').textContent = 'No data';
-                    console.log('⚠️ No humidity data available');
-                }
-                
-                // Update status to online if we got at least some data
-                if (tempValue !== null || humidityData) {
-                    document.getElementById('sensor-status').className = 'status-indicator status-online';
-                    console.log('✅ Homey sensors updated successfully');
-                } else {
-                    throw new Error('No sensor data received from Homey');
-                }
-                
-                return tempValue;
-                
-            } catch (error) {
-                console.error('❌ Error updating Homey sensors:', error.message);
-                document.getElementById('sensor-status').className = 'status-indicator status-offline';
-                
-                // Show error in sensor display
-                document.getElementById('outdoor-temp').textContent = 'Error';
-                document.getElementById('outdoor-humidity').textContent = 'Error';
-                
-                // Add error message to sensor card
-                const sensorGrid = document.querySelector('#sensors-card .sensor-grid');
-                let errorDiv = sensorGrid.querySelector('.error-message');
-                if (!errorDiv) {
-                    errorDiv = document.createElement('div');
-                    errorDiv.className = 'error-message';
-                    errorDiv.style.gridColumn = '1 / -1';
-                    sensorGrid.appendChild(errorDiv);
-                }
-                errorDiv.textContent = `Homey Error: ${error.message}`;
-                
-                return null;
-            }
+    console.log('🏠 Updating Homey outdoor sensors via API...');
+    
+    // Clear previous content
+    document.getElementById('outdoor-temp').textContent = '--°C';
+    document.getElementById('outdoor-humidity').textContent = '--%';
+    document.getElementById('sensor-status').className = 'status-indicator status-offline';
+    
+    try {
+        console.log('📡 Fetching data from /api/homey endpoint...');
+        
+        // Call the Vercel serverless function
+        const response = await fetch('/api/homey');
+        
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+            throw new Error(errorData.message || errorData.error || `API returned ${response.status}`);
         }
-
-        function isHomeyConfigured() {
-            const config = CONFIG.homey;
+        
+        const data = await response.json();
+        console.log('✅ Received data from Homey API:', data);
+        
+        // Extract and display temperature
+        let tempValue = null;
+        if (data.temperature !== undefined && data.temperature !== null) {
+            tempValue = parseFloat(data.temperature).toFixed(1);
+            document.getElementById('outdoor-temp').textContent = tempValue + '°C';
+            console.log('✅ Temperature updated:', tempValue + '°C');
             
-            // Check if we have valid configuration (not placeholders)
-            if (!config || !config.devices || !config.devices.outdoorTempSensor) {
-                console.log('❌ Missing device configuration');
-                return false;
-            }
+            // 🎨 Apply Swix color coding AFTER data retrieval
+            setTimeout(() => {
+                console.log('🎨 Applying Swix color to outdoor sensor...');
+                applySwixColorToElement('outdoor-temp', tempValue);
+            }, 50);
             
-            if (config.devices.outdoorTempSensor.includes('YOUR_')) {
-                console.log('❌ Device ID not configured (contains placeholder)');
-                return false;
-            }
-            
-            // Check if we have valid authentication
-            const hasLocal = config.localUrl && config.bearerToken && 
-                           !config.localUrl.includes('YOUR_') && !config.bearerToken.includes('YOUR_');
-                           
-            const hasCloud = config.cloudUrl && config.accessToken && 
-                           !config.accessToken.includes('YOUR_');
-            
-            if (!hasLocal && !hasCloud) {
-                console.log('❌ No valid authentication configured');
-                return false;
-            }
-            
-            console.log('✅ Homey configuration valid:', {
-                hasLocal: hasLocal,
-                hasCloud: hasCloud,
-                tempSensor: config.devices.outdoorTempSensor
-            });
-            
-            return true;
+            setTimeout(() => {
+                applySwixColorToElement('outdoor-temp', tempValue);
+            }, 500);
+        } else {
+            document.getElementById('outdoor-temp').textContent = 'No data';
+            console.log('⚠️ No temperature data available');
         }
-
-        async function getHomeyDeviceData(deviceId) {
-            if (!deviceId || deviceId.includes('YOUR_')) {
-                throw new Error('Device ID not configured or invalid');
-            }
-
-            console.log('🔍 Getting Homey device data for:', deviceId);
-
-            try {
-                // Try local API first if available
-                if (CONFIG.homey.localUrl && CONFIG.homey.bearerToken && 
-                    !CONFIG.homey.localUrl.includes('YOUR_') && !CONFIG.homey.bearerToken.includes('YOUR_')) {
-                    console.log('🏠 Trying Homey Local API...');
-                    return await getHomeyLocalDeviceData(deviceId);
-                }
-                
-                // Fall back to cloud API
-                if (CONFIG.homey.accessToken && !CONFIG.homey.accessToken.includes('YOUR_')) {
-                    console.log('☁️ Trying Homey Cloud API...');
-                    return await getHomeyCloudDeviceData(deviceId);
-                }
-                
-                throw new Error('No valid Homey configuration found');
-                
-            } catch (error) {
-                console.error(`❌ Error getting device data for ${deviceId}:`, error);
-                throw error;
-            }
+        
+        // Extract and display humidity
+        if (data.humidity !== undefined && data.humidity !== null) {
+            const humidityValue = Math.round(data.humidity);
+            document.getElementById('outdoor-humidity').textContent = humidityValue + '%';
+            console.log('✅ Humidity updated:', humidityValue + '%');
+        } else {
+            document.getElementById('outdoor-humidity').textContent = 'No data';
+            console.log('⚠️ No humidity data available');
         }
-
-        async function getHomeyLocalDeviceData(deviceId) {
-            console.log('📡 Fetching from Homey Local API:', CONFIG.homey.localUrl);
-            
-            try {
-                const response = await fetch(`${CONFIG.homey.localUrl}/api/devices/${deviceId}`, {
-                    method: 'GET',
-                    headers: {
-                        'Authorization': `Bearer ${CONFIG.homey.bearerToken}`,
-                        'Content-Type': 'application/json'
-                    },
-                    timeout: 10000 // 10 second timeout
-                });
-                
-                if (!response.ok) {
-                    throw new Error(`Homey local API error: ${response.status} ${response.statusText}`);
-                }
-                
-                const device = await response.json();
-                console.log('✅ Local API response:', device);
-                
-                return extractSensorData(device);
-                
-            } catch (error) {
-                console.error('❌ Local API failed:', error.message);
-                throw new Error(`Local API failed: ${error.message}`);
-            }
+        
+        // Update status to online if we got at least some data
+        if (tempValue !== null || data.humidity !== null) {
+            document.getElementById('sensor-status').className = 'status-indicator status-online';
+            console.log('✅ Homey sensors updated successfully');
+        } else {
+            throw new Error('No sensor data received from Homey');
         }
-
-        async function getHomeyCloudDeviceData(deviceId) {
-            console.log('☁️ Fetching from Homey Cloud API');
-            
-            try {
-                const response = await fetch(`${CONFIG.homey.cloudUrl}/device/${deviceId}`, {
-                    method: 'GET',
-                    headers: {
-                        'Authorization': `Bearer ${CONFIG.homey.accessToken}`,
-                        'Content-Type': 'application/json'
-                    },
-                    timeout: 15000 // 15 second timeout for cloud
-                });
-                
-                if (!response.ok) {
-                    if (response.status === 401) {
-                        throw new Error('Cloud API authentication failed - check access token');
-                    }
-                    throw new Error(`Homey cloud API error: ${response.status} ${response.statusText}`);
-                }
-                
-                const device = await response.json();
-                console.log('✅ Cloud API response:', device);
-                
-                return extractSensorData(device);
-                
-            } catch (error) {
-                console.error('❌ Cloud API failed:', error.message);
-                throw new Error(`Cloud API failed: ${error.message}`);
-            }
+        
+        return tempValue;
+        
+    } catch (error) {
+        console.error('❌ Error updating Homey sensors:', error.message);
+        document.getElementById('sensor-status').className = 'status-indicator status-offline';
+        
+        // Show error in sensor display
+        document.getElementById('outdoor-temp').textContent = 'Error';
+        document.getElementById('outdoor-humidity').textContent = 'Error';
+        
+        // Add error message to sensor card
+        const sensorGrid = document.querySelector('#sensors-card .sensor-grid');
+        let errorDiv = sensorGrid.querySelector('.error-message');
+        if (!errorDiv) {
+            errorDiv = document.createElement('div');
+            errorDiv.className = 'error-message';
+            errorDiv.style.gridColumn = '1 / -1';
+            sensorGrid.appendChild(errorDiv);
         }
-
-        function extractSensorData(device) {
-            console.log('🔧 Extracting sensor data from device:', device);
-            
-            const data = {};
-            
-            // Handle different device response structures
-            if (device.capabilitiesObj) {
-                // Standard Homey device structure
-                console.log('📊 Device capabilities:', Object.keys(device.capabilitiesObj));
-                
-                // Try different temperature capability names
-                const tempCapabilities = ['measure_temperature', 'temperature', 'temp'];
-                for (const cap of tempCapabilities) {
-                    if (device.capabilitiesObj[cap] && device.capabilitiesObj[cap].value !== undefined) {
-                        data.temperature = device.capabilitiesObj[cap].value;
-                        console.log(`✅ Found temperature in '${cap}':`, data.temperature);
-                        break;
-                    }
-                }
-                
-                // Try different humidity capability names
-                const humidityCapabilities = ['measure_humidity', 'humidity', 'hum'];
-                for (const cap of humidityCapabilities) {
-                    if (device.capabilitiesObj[cap] && device.capabilitiesObj[cap].value !== undefined) {
-                        data.humidity = device.capabilitiesObj[cap].value;
-                        console.log(`✅ Found humidity in '${cap}':`, data.humidity);
-                        break;
-                    }
-                }
-            } else if (device.capabilities) {
-                // Alternative structure - direct capabilities
-                console.log('📊 Direct capabilities:', device.capabilities);
-                if (device.capabilities.temperature !== undefined) {
-                    data.temperature = device.capabilities.temperature;
-                }
-                if (device.capabilities.humidity !== undefined) {
-                    data.humidity = device.capabilities.humidity;
-                }
-            }
-            
-            console.log('🎯 Extracted data:', data);
-            return data;
-        }
+        errorDiv.textContent = `Homey API Error: ${error.message}`;
+        
+        return null;
+    }
+}
 
         // ========== HAFJELL WEATHER STATIONS (FROM HAFJELL WEBSITE) ==========
 
