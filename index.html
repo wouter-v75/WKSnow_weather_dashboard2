@@ -1424,7 +1424,9 @@
                         x: {
                             ticks: {
                                 color: 'rgba(255, 255, 255, 0.8)',
-                                font: { size: 10 }
+                                font: { size: 10 },
+                                maxTicksLimit: 13,
+                                autoSkip: true
                             },
                             grid: { color: 'rgba(255, 255, 255, 0.2)' }
                         },
@@ -1456,7 +1458,7 @@
             temperatureHistory.hafjellTop.push(hafjellTopTemp ? parseFloat(hafjellTopTemp) : null);
             temperatureHistory.hafjellBottom.push(hafjellBottomTemp ? parseFloat(hafjellBottomTemp) : null);
             
-            if (temperatureHistory.labels.length > 12) {
+            if (temperatureHistory.labels.length > 144) {
                 temperatureHistory.labels.shift();
                 temperatureHistory.outdoor.shift();
                 temperatureHistory.hafjellTop.shift();
