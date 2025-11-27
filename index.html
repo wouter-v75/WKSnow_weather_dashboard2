@@ -2009,26 +2009,29 @@
         // ========== YR.NO FORECAST ==========
 
         async function updateForecast() {
-            console.log('Updating YR.no forecast for Mosetertoppen Skistadion (813m) with REAL data...');
+            console.log('Updating YR.no forecast with REAL data...');
             try {
+                // Use Vercel serverless proxy for iOS Safari compatibility
+                // Direct fetch to Met.no doesn't work on iOS due to User-Agent header restrictions
                 const response = await fetch(
-                    `https://api.met.no/weatherapi/locationforecast/2.0/compact?lat=${CONFIG.location.lat}&lon=${CONFIG.location.lon}`,
-                    {
-                        headers: {
-                            'User-Agent': 'WKWeatherDashboard/1.0 (wk@example.com)'
-                        }
-                    }
+                    `/api/forecast?lat=${CONFIG.location.lat}&lon=${CONFIG.location.lon}`
                 );
                 
                 if (!response.ok) {
-                    throw new Error(`YR.no API error: ${response.status} ${response.statusText}`);
+                    throw new Error(`Forecast API error: ${response.status} ${response.statusText}`);
                 }
                 
-                const data = await response.json();
-                console.log('YR.no REAL forecast data received successfully for Mosetertoppen Skistadion (813m)');
+                const result = await response.json();
                 
-                displayForecast(data);
-                displayTomorrowForecast(data);
+                if (!result.success || !result.data) {
+                    throw new Error('Invalid forecast data received');
+                }
+                
+                console.log('YR.no REAL forecast data received successfully via proxy');
+                
+                // Use the actual forecast data from the proxy response
+                displayForecast(result.data);
+                displayTomorrowForecast(result.data);
                 
                 document.getElementById('forecast-status').className = 'status-indicator status-online';
                 document.getElementById('tomorrow-status').className = 'status-indicator status-online';
