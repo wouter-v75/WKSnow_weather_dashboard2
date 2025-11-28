@@ -43,25 +43,29 @@ async function fetchHomeyData(redis) {
     return { success: false, service: 'homey', error: 'Not configured' };
   }
   try {
-    const { default: AthomCloudAPI } = await import('homey-api/lib/AthomCloudAPI.js');
-    const cloudApi = new AthomCloudAPI({
-      clientId: process.env.HOMEY_CLIENT_ID,
-      clientSecret: process.env.HOMEY_CLIENT_SECRET,
-    });
-    await cloudApi.authenticateWithUsernamePassword({
-      username: process.env.HOMEY_USERNAME,
-      password: process.env.HOMEY_PASSWORD,
-    });
-    const user = await cloudApi.getAuthenticatedUser();
-    const homey = await user.getFirstHomey();
-    const homeyApi = await homey.authenticate();
-    const tempDevice = await homeyApi.devices.getDevice({ id: process.env.HOMEY_DEVICE_ID_TEMP });
-    const caps = tempDevice.capabilitiesObj || {};
-    const sensorData = {
-      temperature: caps.measure_temperature?.value,
-      humidity: caps.measure_humidity?.value,
-      timestamp: new Date().toISOString()
-    };
+    // Use existing /api/homey endpoint which already handles authentication
+    const homeyEndpoint = process.env.VERCEL_URL 
+      ? `https://${process.env.VERCEL_URL}/api/homey.js`
+      : 'https://wksnowdashboard.wvsailing.co.uk/api/homey.js';
+    
+    console.log('Calling Homey endpoint:', homeyEndpoint);
+    const response = await fetch(homeyEndpoint);
+    
+    if (!response.ok) {
+      throw new Error(`Homey API returned ${response.status}`);
+    }
+    
+    const sensorData = await response.json();
+    console.log('Homey response:', sensorData);
+    
+    if (sensorData.error) {
+      throw new Error(sensorData.error);
+    }
+    
+    if (!sensorData.temperature && sensorData.temperature !== 0) {
+      throw new Error('No temperature data received');
+    }
+    
     await redis.setex('homey_data', CACHE_TTL, JSON.stringify(sensorData));
     console.log('✅ Homey cached');
     return { success: true, service: 'homey' };
