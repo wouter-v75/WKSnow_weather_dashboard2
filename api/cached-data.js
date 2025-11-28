@@ -1,9 +1,8 @@
 /**
- * Get Cached Data - Simplified for Redis Cloud
- * Uses ioredis which works better with serverless
+ * Get Cached Data - CommonJS Version
  */
 
-import Redis from 'ioredis';
+const Redis = require('ioredis');
 
 function createRedisClient() {
   return new Redis(process.env.REDIS_URL, {
@@ -14,7 +13,7 @@ function createRedisClient() {
   });
 }
 
-export default async function handler(req, res) {
+module.exports = async function handler(req, res) {
   // CORS headers
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS');
@@ -93,4 +92,4 @@ export default async function handler(req, res) {
       }
     }
   }
-}
+};
