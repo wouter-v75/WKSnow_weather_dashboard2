@@ -1,16 +1,26 @@
 /**
- * Vercel Serverless Function: Get Cached Dashboard Data from Upstash Redis
+ * Vercel Serverless Function: Get Cached Dashboard Data from Redis Cloud
  * 
  * Returns pre-cached data from the background refresh job
- * This makes the dashboard load instantly without waiting for API calls
  * 
  * Usage: GET /api/cached-data?type=forecast|homey|hafjell|all
  */
 
-import { Redis } from '@upstash/redis';
+import { createClient } from 'redis';
 
-// Initialize Upstash Redis client
-const redis = Redis.fromEnv();
+let redisClient = null;
+
+async function getRedisClient() {
+  if (!redisClient) {
+    redisClient = createClient({
+      url: process.env.REDIS_URL
+    });
+    
+    redisClient.on('error', (err) => console.error('Redis Client Error', err));
+    await redisClient.connect();
+  }
+  return redisClient;
+}
 
 export default async function handler(req, res) {
   // Enable CORS
@@ -35,8 +45,10 @@ export default async function handler(req, res) {
   try {
     const { type = 'all' } = req.query;
     
-    // Set cache headers for browser caching
+    // Set cache headers
     res.setHeader('Cache-Control', 'public, max-age=60, s-maxage=300');
+    
+    const redis = await getRedisClient();
     
     switch (type) {
       case 'forecast': {
@@ -44,7 +56,7 @@ export default async function handler(req, res) {
         if (!cachedString) {
           return res.status(404).json({
             error: 'No cached data',
-            message: 'Forecast data not yet cached. Wait for background refresh.'
+            message: 'Forecast data not yet cached'
           });
         }
         
@@ -60,7 +72,7 @@ export default async function handler(req, res) {
         if (!cachedString) {
           return res.status(404).json({
             error: 'No cached data',
-            message: 'Homey data not yet cached. Wait for background refresh.'
+            message: 'Homey data not yet cached'
           });
         }
         
@@ -78,7 +90,7 @@ export default async function handler(req, res) {
         if (!cachedString) {
           return res.status(404).json({
             error: 'No cached data',
-            message: 'Hafjell data not yet cached. Wait for background refresh.'
+            message: 'Hafjell data not yet cached'
           });
         }
         
@@ -91,14 +103,12 @@ export default async function handler(req, res) {
       }
       
       case 'all': {
-        // Get all cached data in parallel
         const [forecastStr, homeyStr, hafjellStr] = await Promise.all([
           redis.get('forecast_data'),
           redis.get('homey_data'),
           redis.get('hafjell_html')
         ]);
         
-        // Parse cached data
         const forecast = forecastStr ? JSON.parse(forecastStr) : null;
         const homey = homeyStr ? JSON.parse(homeyStr) : null;
         const hafjell = hafjellStr ? JSON.parse(hafjellStr) : null;
@@ -134,5 +144,11 @@ export default async function handler(req, res) {
       message: error.message,
       timestamp: new Date().toISOString()
     });
+  } finally {
+    // Close connection
+    if (redisClient) {
+      await redisClient.quit();
+      redisClient = null;
+    }
   }
 }
