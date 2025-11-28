@@ -2252,66 +2252,142 @@
 
         // ========== MAIN REFRESH FUNCTION ==========
 
-        async function refreshAllData() {
-            const refreshBtn = document.querySelector('.refresh-btn');
-            refreshBtn.disabled = true;
-            refreshBtn.textContent = '🔄 Refreshing...';
-            
-            document.querySelectorAll('.card').forEach(card => card.classList.add('loading'));
-            
-            try {
-                console.log('Starting REAL-TIME data refresh from all sources...');
-                
-                const [outdoorTemp, hafjellTemps] = await Promise.all([
-                    updatePersonalSensors(),      // Homey outdoor sensors (IMPROVED + SWIX COLORS)
-                    updateHafjellWeather()        // Hafjell website scraping (UNCHANGED + SWIX COLORS)
-                ]);
-                
-                await Promise.all([
-                    updateForecast(),             // YR.no forecast API for Mosetertoppen Skistadion (813m) + SWIX COLORS
-                    updateLiftStatus()            // Hafjell lift status (UNCHANGED)
-                ]);
-                
-                refreshWebcam();                  // Live webcam (UNCHANGED)
-                
-                const hafjellTopTemp = hafjellTemps?.top || null;
-                const hafjellBottomTemp = hafjellTemps?.bottom || null;
-                
-                if (outdoorTemp || hafjellTopTemp || hafjellBottomTemp) {
-                    updateTempChart(outdoorTemp, hafjellTopTemp, hafjellBottomTemp);
-                    console.log('Chart updated with REAL data:', {outdoor: outdoorTemp, top: hafjellTopTemp, bottom: hafjellBottomTemp});
-                }
-                
-                updateTimestamp();
-                console.log('All REAL-TIME data refreshed successfully with official Swix color coding applied');
-                
-                // 🎨 Multiple attempts at color application to ensure it works
-                setTimeout(() => {
-                    console.log('🎨 First color application attempt...');
-                    applyAllSwixColors();
-                }, 200);
-                
-                setTimeout(() => {
-                    console.log('🎨 Second color application attempt...');
-                    applyAllSwixColors();
-                }, 700);
-                
-                setTimeout(() => {
-                    console.log('🎨 Final color application attempt...');
-                    applyAllSwixColors();
-                    console.log('🎨 All Swix color applications completed');
-                }, 1200);
-                
-            } catch (error) {
-                console.error('Error during real-time refresh:', error);
-            } finally {
-                document.querySelectorAll('.card').forEach(card => card.classList.remove('loading'));
-                
-                refreshBtn.disabled = false;
-                refreshBtn.textContent = '🔄 Refresh';
+        
+        // Load data from cache
+        async function loadFromCache() {
+        try {
+            console.log('📦 Loading from cache...');
+            const response = await fetch('/api/cached-data.js?type=all');
+            if (!response.ok) {
+              console.log('⚠️ Cache not available');
+            return null;
             }
-        }
+            const cached = await response.json();
+            console.log('✅ Cache loaded!', cached);
+            return cached.data;
+            } catch (error) {
+            console.error('❌ Cache load failed:', error);
+            return null;
+             }
+         }
 
+        
+        async function refreshAllData() {
+  const refreshBtn = document.querySelector('.refresh-btn');
+  refreshBtn.disabled = true;
+  refreshBtn.textContent = '🔄 Refreshing...';
+  
+  document.querySelectorAll('.card').forEach(card => card.classList.add('loading'));
+  
+  try {
+    console.log('Starting REAL-TIME data refresh...');
+    
+    // 🎯 NEW: Try cache first!
+    const cachedData = await loadFromCache();
+    
+    let outdoorTemp = null;
+    let hafjellTopTemp = null;
+    let hafjellBottomTemp = null;
+    
+    if (cachedData) {
+      console.log('📦 Using cached data!');
+      
+      // Use cached forecast
+      if (cachedData.forecast && cachedData.forecast.data) {
+        displayForecast(cachedData.forecast.data);
+        displayTomorrowForecast(cachedData.forecast.data);
+        document.getElementById('forecast-status').className = 'status-indicator status-online';
+        document.getElementById('tomorrow-status').className = 'status-indicator status-online';
+        console.log('✅ Forecast from cache');
+      }
+      
+      // Use cached Homey
+      if (cachedData.homey) {
+        outdoorTemp = cachedData.homey.temperature;
+        document.getElementById('outdoor-temp').textContent = outdoorTemp + '°C';
+        document.getElementById('outdoor-humidity').textContent = cachedData.homey.humidity + '%';
+        document.getElementById('sensor-status').className = 'status-indicator status-online';
+        
+        // Apply Swix colors
+        applySwixColorToElement('outdoor-temp', outdoorTemp);
+        console.log('✅ Homey from cache');
+      }
+      
+      // Use cached Hafjell
+      if (cachedData.hafjell && cachedData.hafjell.html) {
+        const weatherData = parseWeatherDataFromHTML(cachedData.hafjell.html);
+        
+        // Update UI with parsed data
+        document.getElementById('top-temp').textContent = weatherData.top.temperature + '°C';
+        document.getElementById('top-desc').textContent = weatherData.top.condition;
+        document.getElementById('top-wind').textContent = weatherData.top.wind + ' m/s';
+        document.getElementById('top-snow').textContent = weatherData.top.snow + ' cm';
+        document.getElementById('top-snow-day').textContent = weatherData.top.snowLastDay + ' cm';
+        document.getElementById('top-icon').textContent = getWeatherIconFromCondition(weatherData.top.condition);
+        
+        document.getElementById('bottom-temp').textContent = weatherData.bottom.temperature + '°C';
+        document.getElementById('bottom-desc').textContent = weatherData.bottom.condition;
+        document.getElementById('bottom-wind').textContent = weatherData.bottom.wind + ' m/s';
+        document.getElementById('bottom-snow').textContent = weatherData.bottom.snow + ' cm';
+        document.getElementById('bottom-snow-day').textContent = weatherData.bottom.snowLastDay + ' cm';
+        document.getElementById('bottom-icon').textContent = getWeatherIconFromCondition(weatherData.bottom.condition);
+        
+        document.getElementById('hafjell-status').className = 'status-indicator status-online';
+        
+        hafjellTopTemp = parseFloat(weatherData.top.temperature);
+        hafjellBottomTemp = parseFloat(weatherData.bottom.temperature);
+        
+        // Apply Swix colors
+        applySwixColorToElement('top-temp', hafjellTopTemp);
+        applySwixColorToElement('bottom-temp', hafjellBottomTemp);
+        console.log('✅ Hafjell from cache');
+      }
+    } else {
+      // Fallback: Load directly if cache not available
+      console.log('⚠️ Cache not available, loading directly...');
+      
+      const [outdoorTempDirect, hafjellTempsDirect] = await Promise.all([
+        updatePersonalSensors(),
+        updateHafjellWeather()
+      ]);
+      
+      await Promise.all([
+        updateForecast(),
+        updateLiftStatus()
+      ]);
+      
+      outdoorTemp = outdoorTempDirect;
+      hafjellTopTemp = hafjellTempsDirect?.top;
+      hafjellBottomTemp = hafjellTempsDirect?.bottom;
+    }
+    
+    // Always update lifts and webcam (not cached, change frequently)
+    await updateLiftStatus();
+    refreshWebcam();
+    
+    // Update temperature chart
+    if (outdoorTemp || hafjellTopTemp || hafjellBottomTemp) {
+      updateTempChart(outdoorTemp, hafjellTopTemp, hafjellBottomTemp);
+    }
+    
+    updateTimestamp();
+    
+    // Apply colors again to make sure they stick
+    setTimeout(() => {
+      applyAllSwixColors();
+    }, 500);
+    
+    console.log('✅ All data refreshed!');
+    
+  } catch (error) {
+    console.error('Error during refresh:', error);
+  } finally {
+    document.querySelectorAll('.card').forEach(card => card.classList.remove('loading'));
+    
+    refreshBtn.disabled = false;
+    refreshBtn.textContent = '🔄 Refresh';
+  }
+}
         // ========== DASHBOARD INITIALIZATION ==========
 
         async function initDashboard() {
