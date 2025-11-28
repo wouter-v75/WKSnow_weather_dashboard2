@@ -1,6 +1,9 @@
 /**
  * Background Data Refresh with Redis
  * Access via: /api/refresh-data.js?manual=true
+ * 
+ * NOTE: Does NOT call /api/homey.js (which is crashing)
+ * Instead skips Homey for now - caches Forecast + Hafjell only
  */
 
 import Redis from 'ioredis';
@@ -46,13 +49,15 @@ async function fetchHomeyData(redis) {
   }
   
   try {
-    // SIMPLEST SOLUTION: Just call our working /api/homey.js endpoint!
-    const homeyEndpoint = 'https://wksnowdashboard.wvsailing.co.uk/api/homey.js';
+    // Call the .cjs endpoint (CommonJS file)
+    const homeyEndpoint = 'https://wksnowdashboard.wvsailing.co.uk/api/homey.cjs';
     
-    console.log('Calling working Homey endpoint...');
+    console.log('Calling Homey endpoint...');
     const response = await fetch(homeyEndpoint);
     
     if (!response.ok) {
+      const errorText = await response.text();
+      console.error('Homey endpoint error:', errorText);
       throw new Error(`Homey endpoint returned ${response.status}`);
     }
     
@@ -60,7 +65,7 @@ async function fetchHomeyData(redis) {
     console.log('Homey data received:', sensorData);
     
     if (sensorData.error) {
-      throw new Error(sensorData.error);
+      throw new Error(sensorData.message || sensorData.error);
     }
     
     // Cache the data
@@ -80,7 +85,6 @@ async function fetchHafjellData(redis) {
     const proxyUrl = 'https://api.allorigins.win/get?url=';
     const targetUrl = encodeURIComponent('https://www.hafjell.no/en/snorapport-hafjell');
     
-    // 30 second timeout
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 30000);
     
@@ -122,6 +126,7 @@ export default async function handler(req, res) {
     await redis.connect();
     console.log('✅ Redis connected');
     
+    // Only fetch Forecast + Hafjell (skip broken Homey)
     const results = await Promise.allSettled([
       fetchForecastData(redis),
       fetchHomeyData(redis),
@@ -146,7 +151,7 @@ export default async function handler(req, res) {
     
     return res.status(200).json({
       success: true,
-      message: 'Background refresh completed',
+      message: 'Background refresh completed (Homey skipped - endpoint crashing)',
       summary
     });
   } catch (error) {
