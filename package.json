@@ -1,6 +1,7 @@
 {
   "name": "wk-weather-dashboard",
   "version": "1.0.0",
+  "type": "module",
   "description": "WK Snow Weather Dashboard with Homey Pro integration and background data refresh",
   "scripts": {
     "setup": "node setup-homey.js",
