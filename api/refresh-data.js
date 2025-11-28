@@ -9,7 +9,9 @@ const Redis = require('ioredis');
 const fetch = require('node-fetch');
 
 const CACHE_TTL = 300;
-const HAFJELL_COORDS = { lat: 61.234381, lon: 10.448835 };
+// Mosetertoppen Skistadion location coordinates (813m elevation)
+// This is the cross-country ski stadium, NOT the gondola top station
+const HAFJELL_COORDS = { lat: 61.2430, lon: 10.4900 };
 
 function createRedisClient() {
   return new Redis(process.env.REDIS_URL, {
