@@ -1,188 +1,134 @@
 /**
- * Vercel Serverless Function: Background Data Refresh with Redis Cloud
- * 
- * This function runs when triggered externally (via cron-job.org)
- * It pre-fetches and caches data from all sources using Redis Cloud
- * 
- * Environment variables required:
- * - REDIS_URL (auto-set by Vercel Redis Cloud integration)
- * - CRON_SECRET (you set this manually)
- * - HOMEY_* variables (existing)
+ * Background Data Refresh - Simplified for Redis Cloud
+ * Uses ioredis which works better with serverless functions
  */
 
-import { createClient } from 'redis';
+import Redis from 'ioredis';
 
-const CACHE_TTL = 300; // 5 minutes in seconds
+const CACHE_TTL = 300; // 5 minutes
+const HAFJELL_COORDS = { lat: 61.234381, lon: 10.448835 };
 
-// Hafjell coordinates
-const HAFJELL_COORDS = {
-  lat: 61.234381,
-  lon: 10.448835
-};
-
-// Redis client (will be created on first use)
-let redisClient = null;
-
-async function getRedisClient() {
-  if (!redisClient) {
-    redisClient = createClient({
-      url: process.env.REDIS_URL
-    });
-    
-    redisClient.on('error', (err) => console.error('Redis Client Error', err));
-    await redisClient.connect();
-  }
-  return redisClient;
+// Create Redis client with serverless-friendly settings
+function createRedisClient() {
+  return new Redis(process.env.REDIS_URL, {
+    maxRetriesPerRequest: 3,
+    enableReadyCheck: false,
+    lazyConnect: true,
+    connectTimeout: 10000
+  });
 }
 
 /**
- * Fetch YR.no forecast data
+ * Fetch YR.no forecast
  */
-async function fetchForecastData() {
-  console.log('📊 Fetching YR.no forecast data...');
+async function fetchForecastData(redis) {
+  console.log('📊 Fetching YR.no forecast...');
   
   try {
-    const metnoUrl = `https://api.met.no/weatherapi/locationforecast/2.0/compact?lat=${HAFJELL_COORDS.lat}&lon=${HAFJELL_COORDS.lon}`;
+    const url = `https://api.met.no/weatherapi/locationforecast/2.0/compact?lat=${HAFJELL_COORDS.lat}&lon=${HAFJELL_COORDS.lon}`;
     
-    const response = await fetch(metnoUrl, {
-      method: 'GET',
+    const response = await fetch(url, {
       headers: {
-        'User-Agent': 'WKWeatherDashboard/1.0 (wksnowdashboard.wvsailing.co.uk)',
-        'Accept': 'application/json'
+        'User-Agent': 'WKWeatherDashboard/1.0 (wksnowdashboard.wvsailing.co.uk)'
       }
     });
 
-    if (!response.ok) {
-      throw new Error(`Met.no API error: ${response.status}`);
-    }
+    if (!response.ok) throw new Error(`Met.no error: ${response.status}`);
 
     const data = await response.json();
     
-    // Cache the forecast data in Redis
     const cacheData = {
-      data: data,
+      data,
       timestamp: new Date().toISOString(),
-      source: 'yr.no',
-      coordinates: HAFJELL_COORDS
+      source: 'yr.no'
     };
     
-    const redis = await getRedisClient();
-    await redis.setEx('forecast_data', CACHE_TTL, JSON.stringify(cacheData));
-
-    console.log('✅ YR.no forecast cached successfully');
-    return { success: true, service: 'forecast' };
+    await redis.setex('forecast_data', CACHE_TTL, JSON.stringify(cacheData));
+    console.log('✅ Forecast cached');
     
+    return { success: true, service: 'forecast' };
   } catch (error) {
-    console.error('❌ Forecast fetch error:', error.message);
+    console.error('❌ Forecast error:', error.message);
     return { success: false, service: 'forecast', error: error.message };
   }
 }
 
 /**
- * Fetch Homey sensor data
+ * Fetch Homey data
  */
-async function fetchHomeyData() {
-  console.log('🏠 Fetching Homey sensor data...');
+async function fetchHomeyData(redis) {
+  console.log('🏠 Fetching Homey...');
   
-  // Check if Homey is configured
-  if (!process.env.HOMEY_CLIENT_ID || !process.env.HOMEY_CLIENT_SECRET || 
-      !process.env.HOMEY_USERNAME || !process.env.HOMEY_PASSWORD) {
-    console.log('⚠️  Homey not configured, skipping');
+  if (!process.env.HOMEY_CLIENT_ID) {
+    console.log('⚠️  Homey not configured');
     return { success: false, service: 'homey', error: 'Not configured' };
   }
 
   try {
-    // Dynamic import
     const { default: AthomCloudAPI } = await import('homey-api/lib/AthomCloudAPI.js');
     
-    // Create Cloud API instance
     const cloudApi = new AthomCloudAPI({
       clientId: process.env.HOMEY_CLIENT_ID,
       clientSecret: process.env.HOMEY_CLIENT_SECRET,
     });
 
-    // Authenticate
     await cloudApi.authenticateWithUsernamePassword({
       username: process.env.HOMEY_USERNAME,
       password: process.env.HOMEY_PASSWORD,
     });
 
-    // Get user and first Homey
     const user = await cloudApi.getAuthenticatedUser();
     const homey = await user.getFirstHomey();
     const homeyApi = await homey.authenticate();
     
-    // Fetch temperature data
-    const tempDeviceId = process.env.HOMEY_DEVICE_ID_TEMP;
-    const tempDevice = await homeyApi.devices.getDevice({ id: tempDeviceId });
-    const tempCaps = tempDevice.capabilitiesObj || tempDevice.capabilities || {};
+    const tempDevice = await homeyApi.devices.getDevice({ id: process.env.HOMEY_DEVICE_ID_TEMP });
+    const caps = tempDevice.capabilitiesObj || {};
     
     const sensorData = {
-      temperature: tempCaps.measure_temperature?.value || tempCaps.temperature?.value,
-      humidity: tempCaps.measure_humidity?.value || tempCaps.humidity?.value,
+      temperature: caps.measure_temperature?.value,
+      humidity: caps.measure_humidity?.value,
       timestamp: new Date().toISOString()
     };
     
-    // Try separate humidity sensor if configured
-    const humidityDeviceId = process.env.HOMEY_DEVICE_ID_HUMIDITY;
-    if (humidityDeviceId && humidityDeviceId !== tempDeviceId) {
-      try {
-        const humDevice = await homeyApi.devices.getDevice({ id: humidityDeviceId });
-        const humCaps = humDevice.capabilitiesObj || humDevice.capabilities || {};
-        sensorData.humidity = humCaps.measure_humidity?.value || humCaps.humidity?.value;
-      } catch (error) {
-        console.log('Using humidity from temp sensor');
-      }
-    }
+    await redis.setex('homey_data', CACHE_TTL, JSON.stringify(sensorData));
+    console.log('✅ Homey cached');
     
-    // Cache the sensor data in Redis
-    const redis = await getRedisClient();
-    await redis.setEx('homey_data', CACHE_TTL, JSON.stringify(sensorData));
-
-    console.log('✅ Homey data cached:', sensorData);
-    return { success: true, service: 'homey', data: sensorData };
-    
+    return { success: true, service: 'homey' };
   } catch (error) {
-    console.error('❌ Homey fetch error:', error.message);
+    console.error('❌ Homey error:', error.message);
     return { success: false, service: 'homey', error: error.message };
   }
 }
 
 /**
- * Fetch Hafjell weather and lift data
+ * Fetch Hafjell data
  */
-async function fetchHafjellData() {
-  console.log('🏔️ Fetching Hafjell data...');
+async function fetchHafjellData(redis) {
+  console.log('🏔️ Fetching Hafjell...');
   
   try {
-    // Use CORS proxy to get Hafjell page
     const proxyUrl = 'https://api.allorigins.win/get?url=';
     const targetUrl = encodeURIComponent('https://www.hafjell.no/en/snorapport-hafjell');
     
     const response = await fetch(proxyUrl + targetUrl, {
-      signal: AbortSignal.timeout(10000) // 10 second timeout
+      signal: AbortSignal.timeout(10000)
     });
     
-    if (!response.ok) {
-      throw new Error(`Hafjell fetch error: ${response.status}`);
-    }
+    if (!response.ok) throw new Error(`Hafjell error: ${response.status}`);
     
     const data = await response.json();
     
-    // Cache the raw HTML for parsing by frontend
     const cacheData = {
       html: data.contents,
       timestamp: new Date().toISOString()
     };
     
-    const redis = await getRedisClient();
-    await redis.setEx('hafjell_html', CACHE_TTL, JSON.stringify(cacheData));
-
-    console.log('✅ Hafjell data cached successfully');
-    return { success: true, service: 'hafjell' };
+    await redis.setex('hafjell_html', CACHE_TTL, JSON.stringify(cacheData));
+    console.log('✅ Hafjell cached');
     
+    return { success: true, service: 'hafjell' };
   } catch (error) {
-    console.error('❌ Hafjell fetch error:', error.message);
+    console.error('❌ Hafjell error:', error.message);
     return { success: false, service: 'hafjell', error: error.message };
   }
 }
@@ -191,76 +137,69 @@ async function fetchHafjellData() {
  * Main handler
  */
 export default async function handler(req, res) {
-  // Verify this is authorized
-  const authHeader = req.headers.authorization;
-  
-  if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
-    console.log('⚠️  Unauthorized request');
-    // Allow manual testing with ?manual=true
+  // Simple auth check
+  if (req.headers.authorization !== `Bearer ${process.env.CRON_SECRET}`) {
     if (process.env.NODE_ENV === 'production' && !req.query.manual) {
       return res.status(401).json({ error: 'Unauthorized' });
     }
   }
 
-  console.log('🔄 Starting background data refresh...');
+  console.log('🔄 Starting refresh...');
   const startTime = Date.now();
   
+  let redis = null;
+  
   try {
-    // Fetch all data in parallel
+    // Create and connect Redis client
+    redis = createRedisClient();
+    await redis.connect();
+    console.log('✅ Redis connected');
+    
+    // Fetch all data
     const results = await Promise.allSettled([
-      fetchForecastData(),
-      fetchHomeyData(),
-      fetchHafjellData()
+      fetchForecastData(redis),
+      fetchHomeyData(redis),
+      fetchHafjellData(redis)
     ]);
 
     const duration = Date.now() - startTime;
     
-    // Process results
     const summary = {
       timestamp: new Date().toISOString(),
       duration: `${duration}ms`,
-      results: results.map((result, index) => {
-        if (result.status === 'fulfilled') {
-          return result.value;
-        } else {
-          return {
-            success: false,
-            service: ['forecast', 'homey', 'hafjell'][index],
-            error: result.reason?.message || 'Unknown error'
-          };
+      results: results.map((r, i) => 
+        r.status === 'fulfilled' ? r.value : {
+          success: false,
+          service: ['forecast', 'homey', 'hafjell'][i],
+          error: r.reason?.message
         }
-      })
+      )
     };
 
     const successCount = summary.results.filter(r => r.success).length;
-    const totalCount = summary.results.length;
-    
-    console.log(`✅ Background refresh complete: ${successCount}/${totalCount} successful in ${duration}ms`);
-    
-    // Close Redis connection
-    if (redisClient) {
-      await redisClient.quit();
-      redisClient = null;
-    }
+    console.log(`✅ Refresh complete: ${successCount}/3 successful in ${duration}ms`);
     
     return res.status(200).json({
       success: true,
-      message: `Background data refresh completed`,
-      summary: summary
+      message: 'Background refresh completed',
+      summary
     });
     
   } catch (error) {
-    console.error('❌ Refresh error:', error);
-    
-    // Close Redis connection on error
-    if (redisClient) {
-      await redisClient.quit();
-      redisClient = null;
-    }
-    
+    console.error('❌ Refresh failed:', error);
     return res.status(500).json({
       error: 'Refresh failed',
       message: error.message
     });
+  } finally {
+    // Always disconnect Redis
+    if (redis) {
+      try {
+        await redis.quit();
+        console.log('✅ Redis disconnected');
+      } catch (e) {
+        console.log('Redis disconnect error (ignored)');
+      }
+    }
   }
 }
