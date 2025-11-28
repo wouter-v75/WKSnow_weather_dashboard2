@@ -1,9 +1,6 @@
 /**
  * Background Data Refresh with Redis
  * Access via: /api/refresh-data.js?manual=true
- * 
- * NOTE: Does NOT call /api/homey.js (which is crashing)
- * Instead skips Homey for now - caches Forecast + Hafjell only
  */
 
 import Redis from 'ioredis';
@@ -57,7 +54,7 @@ async function fetchHomeyData(redis) {
     
     if (!response.ok) {
       const errorText = await response.text();
-      console.error('Homey endpoint error:', errorText);
+      console.error('Homey endpoint error:', errorText.substring(0, 200));
       throw new Error(`Homey endpoint returned ${response.status}`);
     }
     
@@ -126,7 +123,6 @@ export default async function handler(req, res) {
     await redis.connect();
     console.log('✅ Redis connected');
     
-    // Only fetch Forecast + Hafjell (skip broken Homey)
     const results = await Promise.allSettled([
       fetchForecastData(redis),
       fetchHomeyData(redis),
@@ -151,7 +147,7 @@ export default async function handler(req, res) {
     
     return res.status(200).json({
       success: true,
-      message: 'Background refresh completed (Homey skipped - endpoint crashing)',
+      message: 'Background refresh completed',
       summary
     });
   } catch (error) {
