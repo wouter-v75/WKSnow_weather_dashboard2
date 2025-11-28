@@ -8,10 +8,6 @@ import Redis from 'ioredis';
 const CACHE_TTL = 300;
 const HAFJELL_COORDS = { lat: 61.234381, lon: 10.448835 };
 
-// Token cache (persists across invocations)
-let cachedAccessToken = null;
-let tokenExpiry = null;
-
 function createRedisClient() {
   return new Redis(process.env.REDIS_URL, {
     maxRetriesPerRequest: 3,
@@ -19,49 +15,6 @@ function createRedisClient() {
     lazyConnect: true,
     connectTimeout: 10000
   });
-}
-
-/**
- * Get fresh access token using refresh token (SAME AS api/homey.js)
- */
-async function getAccessToken() {
-  const now = Date.now();
-  if (cachedAccessToken && tokenExpiry && (tokenExpiry - now) > 5 * 60 * 1000) {
-    console.log('Using cached access token');
-    return cachedAccessToken;
-  }
-  
-  console.log('Refreshing access token...');
-  
-  try {
-    const response = await fetch('https://api.athom.com/oauth2/token', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/x-www-form-urlencoded',
-        'Authorization': 'Basic ' + Buffer.from(
-          `${process.env.HOMEY_CLIENT_ID}:${process.env.HOMEY_CLIENT_SECRET}`
-        ).toString('base64')
-      },
-      body: `grant_type=refresh_token&refresh_token=${process.env.HOMEY_REFRESH_TOKEN}`
-    });
-
-    if (!response.ok) {
-      const error = await response.text();
-      throw new Error(`OAuth token refresh failed: ${response.status} - ${error}`);
-    }
-
-    const data = await response.json();
-    
-    cachedAccessToken = data.access_token;
-    tokenExpiry = Date.now() + (data.expires_in * 1000);
-    
-    console.log('Access token refreshed, expires in', data.expires_in, 'seconds');
-    return cachedAccessToken;
-    
-  } catch (error) {
-    console.error('Token refresh error:', error);
-    throw error;
-  }
 }
 
 async function fetchForecastData(redis) {
@@ -93,81 +46,24 @@ async function fetchHomeyData(redis) {
   }
   
   try {
-    // Get fresh access token
-    const accessToken = await getAccessToken();
+    // SIMPLEST SOLUTION: Just call our working /api/homey.js endpoint!
+    const homeyEndpoint = 'https://wksnowdashboard.wvsailing.co.uk/api/homey.js';
     
-    // Get user info to find Homey ID
-    console.log('Getting user info...');
-    const userResponse = await fetch('https://api.athom.com/user/me', {
-      headers: { 'Authorization': `Bearer ${accessToken}` }
-    });
+    console.log('Calling working Homey endpoint...');
+    const response = await fetch(homeyEndpoint);
     
-    if (!userResponse.ok) {
-      throw new Error(`User API error: ${userResponse.status}`);
+    if (!response.ok) {
+      throw new Error(`Homey endpoint returned ${response.status}`);
     }
     
-    const userData = await userResponse.json();
-    console.log('User:', userData.email);
+    const sensorData = await response.json();
+    console.log('Homey data received:', sensorData);
     
-    // Get Homey devices
-    console.log('Getting Homeys...');
-    const homeysResponse = await fetch('https://api.athom.com/homey', {
-      headers: { 'Authorization': `Bearer ${accessToken}` }
-    });
-    
-    if (!homeysResponse.ok) {
-      throw new Error(`Homeys API error: ${homeysResponse.status}`);
+    if (sensorData.error) {
+      throw new Error(sensorData.error);
     }
     
-    const homeys = await homeysResponse.json();
-    if (!homeys || homeys.length === 0) {
-      throw new Error('No Homey devices found');
-    }
-    
-    const homeyId = homeys[0]._id;
-    console.log('Using Homey:', homeys[0].name, homeyId);
-    
-    // Create delegation token for this Homey
-    console.log('Creating delegation token...');
-    const delegationResponse = await fetch(`https://api.athom.com/delegation/token?audience=homey`, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${accessToken}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({ homey: homeyId })
-    });
-    
-    if (!delegationResponse.ok) {
-      throw new Error(`Delegation token error: ${delegationResponse.status}`);
-    }
-    
-    const delegationData = await delegationResponse.json();
-    const homeyToken = delegationData.token;
-    
-    // Get device data from Homey local API
-    console.log('Getting device data...');
-    const deviceId = process.env.HOMEY_DEVICE_ID_TEMP;
-    const deviceResponse = await fetch(`https://${homeyId}.connect.athom.com/api/device/${deviceId}`, {
-      headers: { 'Authorization': `Bearer ${homeyToken}` }
-    });
-    
-    if (!deviceResponse.ok) {
-      throw new Error(`Device API error: ${deviceResponse.status}`);
-    }
-    
-    const device = await deviceResponse.json();
-    const caps = device.capabilitiesObj || device.capabilities || {};
-    
-    const sensorData = {
-      temperature: caps.measure_temperature?.value || caps.temperature?.value,
-      humidity: caps.measure_humidity?.value || caps.humidity?.value,
-      timestamp: new Date().toISOString(),
-      source: 'homey-pro'
-    };
-    
-    console.log('Sensor data:', sensorData);
-    
+    // Cache the data
     await redis.setex('homey_data', CACHE_TTL, JSON.stringify(sensorData));
     console.log('✅ Homey cached');
     return { success: true, service: 'homey' };
@@ -184,19 +80,26 @@ async function fetchHafjellData(redis) {
     const proxyUrl = 'https://api.allorigins.win/get?url=';
     const targetUrl = encodeURIComponent('https://www.hafjell.no/en/snorapport-hafjell');
     
+    // 30 second timeout
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 20000);
+    const timeoutId = setTimeout(() => controller.abort(), 30000);
     
     const response = await fetch(proxyUrl + targetUrl, { signal: controller.signal });
     clearTimeout(timeoutId);
     
-    if (!response.ok) throw new Error(`Hafjell: ${response.status}`);
+    if (!response.ok) throw new Error(`Hafjell proxy: ${response.status}`);
+    
     const data = await response.json();
+    if (!data.contents) throw new Error('No HTML content in response');
+    
     await redis.setex('hafjell_html', CACHE_TTL, JSON.stringify({
-      html: data.contents, timestamp: new Date().toISOString()
+      html: data.contents, 
+      timestamp: new Date().toISOString()
     }));
+    
     console.log('✅ Hafjell cached');
     return { success: true, service: 'hafjell' };
+    
   } catch (error) {
     console.error('❌ Hafjell:', error.message);
     return { success: false, service: 'hafjell', error: error.message };
