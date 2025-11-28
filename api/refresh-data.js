@@ -2,7 +2,7 @@
  * Background Data Refresh with Redis - CommonJS Version
  * Access via: /api/refresh-data.js?manual=true
  * 
- * Uses EXACT same Homey authentication as working api/homey.js
+ * Simply calls working endpoints and caches the results
  */
 
 const Redis = require('ioredis');
@@ -10,51 +10,6 @@ const fetch = require('node-fetch');
 
 const CACHE_TTL = 300;
 const HAFJELL_COORDS = { lat: 61.234381, lon: 10.448835 };
-
-// Token cache (persists across function invocations)
-let cachedAccessToken = null;
-let tokenExpiry = null;
-
-/**
- * Get fresh access token using refresh token - EXACT COPY from homey.js
- */
-async function getAccessToken() {
-  const now = Date.now();
-  if (cachedAccessToken && tokenExpiry && (tokenExpiry - now) > 5 * 60 * 1000) {
-    console.log('Using cached access token');
-    return cachedAccessToken;
-  }
-  
-  console.log('Refreshing access token...');
-  
-  try {
-    const response = await fetch('https://api.athom.com/oauth2/token', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/x-www-form-urlencoded',
-        'Authorization': 'Basic ' + Buffer.from(
-          `${process.env.HOMEY_CLIENT_ID}:${process.env.HOMEY_CLIENT_SECRET}`
-        ).toString('base64')
-      },
-      body: `grant_type=refresh_token&refresh_token=${process.env.HOMEY_REFRESH_TOKEN}`
-    });
-
-    if (!response.ok) {
-      const error = await response.text();
-      throw new Error(`OAuth token refresh failed: ${response.status} - ${error}`);
-    }
-
-    const data = await response.json();
-    cachedAccessToken = data.access_token;
-    tokenExpiry = Date.now() + (data.expires_in * 1000);
-    
-    console.log('Access token refreshed, expires in', data.expires_in, 'seconds');
-    return cachedAccessToken;
-  } catch (error) {
-    console.error('Token refresh error:', error);
-    throw error;
-  }
-}
 
 function createRedisClient() {
   return new Redis(process.env.REDIS_URL, {
@@ -88,82 +43,30 @@ async function fetchForecastData(redis) {
 async function fetchHomeyData(redis) {
   console.log('🏠 Fetching Homey...');
   
-  if (!process.env.HOMEY_REFRESH_TOKEN) {
-    console.log('⚠️ Homey not configured');
-    return { success: false, service: 'homey', error: 'Not configured' };
-  }
-  
   try {
-    // Use EXACT same method as working homey.js
-    const accessToken = await getAccessToken();
+    // Simply call the working homey.js endpoint!
+    const homeyEndpoint = 'https://wksnowdashboard.wvsailing.co.uk/api/homey.js';
     
-    // Get user info
-    const userResponse = await fetch('https://api.athom.com/user/me', {
-      headers: { 'Authorization': `Bearer ${accessToken}` }
-    });
+    console.log('Calling working Homey endpoint...');
+    const response = await fetch(homeyEndpoint);
     
-    if (!userResponse.ok) {
-      throw new Error(`User API error: ${userResponse.status}`);
+    if (!response.ok) {
+      throw new Error(`Homey endpoint returned ${response.status}`);
     }
     
-    const userData = await userResponse.json();
-    console.log('User:', userData.email);
+    const sensorData = await response.json();
+    console.log('Homey data received:', sensorData);
     
-    // Get Homey devices
-    const homeysResponse = await fetch('https://api.athom.com/homey', {
-      headers: { 'Authorization': `Bearer ${accessToken}` }
-    });
-    
-    if (!homeysResponse.ok) {
-      throw new Error(`Homeys API error: ${homeysResponse.status}`);
+    if (sensorData.error) {
+      throw new Error(sensorData.message || sensorData.error);
     }
     
-    const homeys = await homeysResponse.json();
-    if (!homeys || homeys.length === 0) {
-      throw new Error('No Homey devices found');
+    // Verify we have data
+    if (sensorData.temperature === undefined && sensorData.temperature !== 0) {
+      throw new Error('No temperature data in response');
     }
     
-    const homeyId = homeys[0]._id;
-    console.log('Using Homey:', homeys[0].name);
-    
-    // Create delegation token
-    const delegationResponse = await fetch(`https://api.athom.com/delegation/token?audience=homey`, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${accessToken}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({ homey: homeyId })
-    });
-    
-    if (!delegationResponse.ok) {
-      throw new Error(`Delegation token error: ${delegationResponse.status}`);
-    }
-    
-    const delegationData = await delegationResponse.json();
-    
-    // Get device data
-    const deviceId = process.env.HOMEY_DEVICE_ID_TEMP;
-    const deviceResponse = await fetch(`https://${homeyId}.connect.athom.com/api/manager/devices/device/${deviceId}`, {
-      headers: { 'Authorization': `Bearer ${delegationData.token}` }
-    });
-    
-    if (!deviceResponse.ok) {
-      throw new Error(`Device API error: ${deviceResponse.status}`);
-    }
-    
-    const device = await deviceResponse.json();
-    const caps = device.capabilitiesObj || device.capabilities || {};
-    
-    const sensorData = {
-      temperature: caps.measure_temperature?.value,
-      humidity: caps.measure_humidity?.value,
-      timestamp: new Date().toISOString(),
-      source: 'homey-pro'
-    };
-    
-    console.log('Sensor data:', sensorData);
-    
+    // Cache the data
     await redis.setex('homey_data', CACHE_TTL, JSON.stringify(sensorData));
     console.log('✅ Homey cached');
     return { success: true, service: 'homey' };
