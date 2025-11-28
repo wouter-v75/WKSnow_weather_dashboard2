@@ -1,23 +1,16 @@
 /**
- * Vercel Cron Job: Background Data Refresh with Upstash Redis
+ * Vercel Serverless Function: Background Data Refresh with Redis Cloud
  * 
- * This function runs every 5 minutes (even when no one is viewing the dashboard)
- * It pre-fetches and caches data from all sources using Upstash Redis
- * 
- * Schedule: */5 * * * * (every 5 minutes)
+ * This function runs when triggered externally (via cron-job.org)
+ * It pre-fetches and caches data from all sources using Redis Cloud
  * 
  * Environment variables required:
- * - UPSTASH_REDIS_REST_URL (auto-set by Vercel Marketplace integration)
- * - UPSTASH_REDIS_REST_TOKEN (auto-set by Vercel Marketplace integration)
+ * - REDIS_URL (auto-set by Vercel Redis Cloud integration)
  * - CRON_SECRET (you set this manually)
  * - HOMEY_* variables (existing)
  */
 
-import { Redis } from '@upstash/redis';
-
-// Initialize Upstash Redis client
-// This automatically reads UPSTASH_REDIS_REST_URL and UPSTASH_REDIS_REST_TOKEN
-const redis = Redis.fromEnv();
+import { createClient } from 'redis';
 
 const CACHE_TTL = 300; // 5 minutes in seconds
 
@@ -26,6 +19,21 @@ const HAFJELL_COORDS = {
   lat: 61.234381,
   lon: 10.448835
 };
+
+// Redis client (will be created on first use)
+let redisClient = null;
+
+async function getRedisClient() {
+  if (!redisClient) {
+    redisClient = createClient({
+      url: process.env.REDIS_URL
+    });
+    
+    redisClient.on('error', (err) => console.error('Redis Client Error', err));
+    await redisClient.connect();
+  }
+  return redisClient;
+}
 
 /**
  * Fetch YR.no forecast data
@@ -58,7 +66,8 @@ async function fetchForecastData() {
       coordinates: HAFJELL_COORDS
     };
     
-    await redis.setex('forecast_data', CACHE_TTL, JSON.stringify(cacheData));
+    const redis = await getRedisClient();
+    await redis.setEx('forecast_data', CACHE_TTL, JSON.stringify(cacheData));
 
     console.log('✅ YR.no forecast cached successfully');
     return { success: true, service: 'forecast' };
@@ -83,7 +92,7 @@ async function fetchHomeyData() {
   }
 
   try {
-    // Dynamic import to avoid issues if module not installed
+    // Dynamic import
     const { default: AthomCloudAPI } = await import('homey-api/lib/AthomCloudAPI.js');
     
     // Create Cloud API instance
@@ -127,7 +136,8 @@ async function fetchHomeyData() {
     }
     
     // Cache the sensor data in Redis
-    await redis.setex('homey_data', CACHE_TTL, JSON.stringify(sensorData));
+    const redis = await getRedisClient();
+    await redis.setEx('homey_data', CACHE_TTL, JSON.stringify(sensorData));
 
     console.log('✅ Homey data cached:', sensorData);
     return { success: true, service: 'homey', data: sensorData };
@@ -165,7 +175,8 @@ async function fetchHafjellData() {
       timestamp: new Date().toISOString()
     };
     
-    await redis.setex('hafjell_html', CACHE_TTL, JSON.stringify(cacheData));
+    const redis = await getRedisClient();
+    await redis.setEx('hafjell_html', CACHE_TTL, JSON.stringify(cacheData));
 
     console.log('✅ Hafjell data cached successfully');
     return { success: true, service: 'hafjell' };
@@ -177,16 +188,15 @@ async function fetchHafjellData() {
 }
 
 /**
- * Main cron handler
+ * Main handler
  */
 export default async function handler(req, res) {
-  // Verify this is a cron request (security)
+  // Verify this is authorized
   const authHeader = req.headers.authorization;
   
-  // Vercel cron jobs include a special header
   if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
-    console.log('⚠️  Unauthorized cron request');
-    // Still allow for manual testing with ?manual=true
+    console.log('⚠️  Unauthorized request');
+    // Allow manual testing with ?manual=true
     if (process.env.NODE_ENV === 'production' && !req.query.manual) {
       return res.status(401).json({ error: 'Unauthorized' });
     }
@@ -195,41 +205,62 @@ export default async function handler(req, res) {
   console.log('🔄 Starting background data refresh...');
   const startTime = Date.now();
   
-  // Fetch all data in parallel
-  const results = await Promise.allSettled([
-    fetchForecastData(),
-    fetchHomeyData(),
-    fetchHafjellData()
-  ]);
+  try {
+    // Fetch all data in parallel
+    const results = await Promise.allSettled([
+      fetchForecastData(),
+      fetchHomeyData(),
+      fetchHafjellData()
+    ]);
 
-  const duration = Date.now() - startTime;
-  
-  // Process results
-  const summary = {
-    timestamp: new Date().toISOString(),
-    duration: `${duration}ms`,
-    results: results.map((result, index) => {
-      if (result.status === 'fulfilled') {
-        return result.value;
-      } else {
-        return {
-          success: false,
-          service: ['forecast', 'homey', 'hafjell'][index],
-          error: result.reason?.message || 'Unknown error'
-        };
-      }
-    })
-  };
+    const duration = Date.now() - startTime;
+    
+    // Process results
+    const summary = {
+      timestamp: new Date().toISOString(),
+      duration: `${duration}ms`,
+      results: results.map((result, index) => {
+        if (result.status === 'fulfilled') {
+          return result.value;
+        } else {
+          return {
+            success: false,
+            service: ['forecast', 'homey', 'hafjell'][index],
+            error: result.reason?.message || 'Unknown error'
+          };
+        }
+      })
+    };
 
-  const successCount = summary.results.filter(r => r.success).length;
-  const totalCount = summary.results.length;
-  
-  console.log(`✅ Background refresh complete: ${successCount}/${totalCount} successful in ${duration}ms`);
-  
-  // Return summary
-  return res.status(200).json({
-    success: true,
-    message: `Background data refresh completed`,
-    summary: summary
-  });
+    const successCount = summary.results.filter(r => r.success).length;
+    const totalCount = summary.results.length;
+    
+    console.log(`✅ Background refresh complete: ${successCount}/${totalCount} successful in ${duration}ms`);
+    
+    // Close Redis connection
+    if (redisClient) {
+      await redisClient.quit();
+      redisClient = null;
+    }
+    
+    return res.status(200).json({
+      success: true,
+      message: `Background data refresh completed`,
+      summary: summary
+    });
+    
+  } catch (error) {
+    console.error('❌ Refresh error:', error);
+    
+    // Close Redis connection on error
+    if (redisClient) {
+      await redisClient.quit();
+      redisClient = null;
+    }
+    
+    return res.status(500).json({
+      error: 'Refresh failed',
+      message: error.message
+    });
+  }
 }
