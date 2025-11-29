@@ -1,145 +1,194 @@
 /**
- * Vercel Serverless Function: YR.no Forecast API Proxy
+ * Vercel Serverless Function: YR.no Forecast with Redis Cloud Caching
  * 
- * This function proxies requests to the Met.no Weather API with proper User-Agent header
- * Solves iOS Safari compatibility issues where custom User-Agent headers cannot be set
- * 
- * Usage: GET /api/forecast?lat=XX.XXXX&lon=XX.XXXX
+ * Compatible with your existing Redis Cloud database
+ * Uses REDIS_URL environment variable (already configured)
  */
 
+const { createClient } = require('redis');
+
+const CACHE_KEY = 'yrno_forecast';
+const CACHE_DURATION = 15 * 60; // 15 minutes
+
+const HAFJELL_LAT = 61.234381;
+const HAFJELL_LON = 10.448835;
+
+let redisClient = null;
+
+async function getRedisClient() {
+  if (!redisClient || !redisClient.isOpen) {
+    redisClient = createClient({
+      url: process.env.REDIS_URL,
+      socket: {
+        reconnectStrategy: (retries) => {
+          if (retries > 3) return new Error('Max retries reached');
+          return Math.min(retries * 100, 3000);
+        }
+      }
+    });
+    
+    redisClient.on('error', (err) => console.error('Redis Client Error:', err));
+    await redisClient.connect();
+    console.log('✅ Connected to Redis Cloud');
+  }
+  return redisClient;
+}
+
 export default async function handler(req, res) {
-  // Enable CORS
   res.setHeader('Access-Control-Allow-Credentials', true);
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'X-Requested-With, Content-Type, Accept');
 
-  // Handle preflight
   if (req.method === 'OPTIONS') {
     return res.status(200).json({ message: 'OK' });
   }
 
-  // Only allow GET requests
   if (req.method !== 'GET') {
-    return res.status(405).json({ 
-      error: 'Method not allowed',
-      message: 'Only GET requests are supported' 
-    });
+    return res.status(405).json({ error: 'Method not allowed' });
   }
 
   try {
-    // Get coordinates from query parameters
-    const { lat, lon } = req.query;
-    
-    // Validate parameters
-    if (!lat || !lon) {
-      return res.status(400).json({
-        error: 'Missing parameters',
-        message: 'Both lat and lon query parameters are required'
-      });
+    if (!process.env.REDIS_URL) {
+      console.log('Redis not configured, fetching fresh data');
+      const freshData = await fetchYRnoData();
+      return res.status(200).json(freshData);
     }
 
-    // Validate coordinate format (must be valid numbers)
-    const latitude = parseFloat(lat);
-    const longitude = parseFloat(lon);
+    const cachedData = await getCachedData();
     
-    if (isNaN(latitude) || isNaN(longitude)) {
-      return res.status(400).json({
-        error: 'Invalid parameters',
-        message: 'lat and lon must be valid numbers'
-      });
+    if (cachedData) {
+      console.log('Returning cached YR.no forecast data');
+      return res.status(200).json(cachedData);
     }
 
-    // Validate coordinate ranges
-    if (latitude < -90 || latitude > 90 || longitude < -180 || longitude > 180) {
-      return res.status(400).json({
-        error: 'Invalid coordinates',
-        message: 'Latitude must be between -90 and 90, longitude between -180 and 180'
-      });
-    }
-
-    // Round to 4 decimals as per Met.no best practices
-    const roundedLat = Math.round(latitude * 10000) / 10000;
-    const roundedLon = Math.round(longitude * 10000) / 10000;
-
-    console.log(`Fetching forecast for coordinates: ${roundedLat}, ${roundedLon}`);
-
-    // Build Met.no API URL
-    const metnoUrl = `https://api.met.no/weatherapi/locationforecast/2.0/compact?lat=${roundedLat}&lon=${roundedLon}`;
+    console.log('Cache miss, fetching fresh YR.no data');
+    const freshData = await fetchYRnoData();
+    await setCachedData(freshData);
     
-    // Make request to Met.no with proper User-Agent header
-    const response = await fetch(metnoUrl, {
-      method: 'GET',
-      headers: {
-        // Met.no requires proper User-Agent identification
-        'User-Agent': 'WKWeatherDashboard/1.0 (wksnowdashboard.wvsailing.co.uk)',
-        'Accept': 'application/json'
-      }
-    });
-
-    // Check if request was successful
-    if (!response.ok) {
-      console.error(`Met.no API error: ${response.status} ${response.statusText}`);
-      
-      // Handle specific error codes
-      if (response.status === 403) {
-        return res.status(500).json({
-          error: 'Met.no API access denied',
-          message: 'The weather service rejected our request. Please try again later.',
-          statusCode: response.status
-        });
-      }
-      
-      if (response.status === 429) {
-        return res.status(429).json({
-          error: 'Rate limit exceeded',
-          message: 'Too many requests to weather service. Please wait a moment.',
-          statusCode: response.status
-        });
-      }
-      
-      throw new Error(`Met.no API returned ${response.status}: ${response.statusText}`);
-    }
-
-    // Get response data
-    const forecastData = await response.json();
-    
-    // Get caching headers from Met.no response
-    const expires = response.headers.get('Expires');
-    const lastModified = response.headers.get('Last-Modified');
-    
-    console.log(`Successfully fetched forecast data. Expires: ${expires}`);
-
-    // Set appropriate caching headers for client
-    if (expires) {
-      res.setHeader('Expires', expires);
-    }
-    if (lastModified) {
-      res.setHeader('Last-Modified', lastModified);
-    }
-    
-    // Cache for 5 minutes (Met.no updates hourly, but we refresh more frequently)
-    res.setHeader('Cache-Control', 'public, max-age=300');
-
-    // Return the forecast data
-    return res.status(200).json({
-      success: true,
-      data: forecastData,
-      source: 'yr.no',
-      coordinates: {
-        lat: roundedLat,
-        lon: roundedLon
-      },
-      timestamp: new Date().toISOString()
-    });
+    return res.status(200).json(freshData);
 
   } catch (error) {
     console.error('Forecast API Error:', error);
     
+    const staleData = await getCachedData(true);
+    if (staleData) {
+      console.log('Returning stale cache due to error');
+      return res.status(200).json({
+        ...staleData,
+        warning: 'Using cached data due to API error'
+      });
+    }
+    
     return res.status(500).json({
-      error: 'Failed to fetch forecast',
+      error: 'Failed to fetch forecast data',
       message: error.message,
       timestamp: new Date().toISOString()
     });
   }
+}
+
+async function getCachedData(ignoreExpiry = false) {
+  try {
+    const redis = await getRedisClient();
+    const cached = await redis.get(CACHE_KEY);
+    
+    if (!cached) {
+      return null;
+    }
+
+    const cachedData = JSON.parse(cached);
+    
+    if (!ignoreExpiry) {
+      const cacheAge = (Date.now() - new Date(cachedData.cachedAt).getTime()) / 1000;
+      if (cacheAge > CACHE_DURATION) {
+        console.log(`Cache expired (${Math.round(cacheAge)}s old)`);
+        return null;
+      }
+    }
+    
+    return cachedData;
+  } catch (error) {
+    console.error('Error getting cached data:', error);
+    return null;
+  }
+}
+
+async function setCachedData(data) {
+  try {
+    const cacheData = {
+      ...data,
+      cachedAt: new Date().toISOString()
+    };
+
+    const redis = await getRedisClient();
+    await redis.setEx(CACHE_KEY, CACHE_DURATION * 2, JSON.stringify(cacheData));
+    console.log('YR.no data cached successfully');
+  } catch (error) {
+    console.error('Error caching data:', error);
+  }
+}
+
+async function fetchYRnoData() {
+  const response = await fetch(
+    `https://api.met.no/weatherapi/locationforecast/2.0/compact?lat=${HAFJELL_LAT}&lon=${HAFJELL_LON}`,
+    {
+      headers: {
+        'User-Agent': 'WKWeatherDashboard/1.0 (wk@example.com)'
+      }
+    }
+  );
+
+  if (!response.ok) {
+    throw new Error(`YR.no API error: ${response.status}`);
+  }
+
+  const fullData = await response.json();
+  const optimizedData = extractEssentialData(fullData);
+  
+  return optimizedData;
+}
+
+function extractEssentialData(fullData) {
+  const now = new Date();
+  const today = now.toDateString();
+  const tomorrow = new Date(now.getTime() + 24 * 60 * 60 * 1000).toDateString();
+  
+  const todayForecasts = fullData.properties.timeseries
+    .filter(item => {
+      const itemDate = new Date(item.time);
+      return itemDate.toDateString() === today && itemDate > now;
+    })
+    .slice(0, 6)
+    .map(item => ({
+      time: item.time,
+      temperature: Math.round(item.data.instant.details.air_temperature),
+      symbol: item.data.next_1_hours?.summary?.symbol_code || 'clearsky_day',
+      windSpeed: Math.round(item.data.instant.details.wind_speed || 0),
+      windDirection: item.data.instant.details.wind_from_direction
+    }));
+
+  const tomorrowForecasts = fullData.properties.timeseries
+    .filter(item => {
+      const itemDate = new Date(item.time);
+      const itemHour = itemDate.getHours();
+      return itemDate.toDateString() === tomorrow && 
+             itemHour >= 6 && itemHour <= 18;
+    })
+    .filter((item, index) => index % 2 === 0)
+    .slice(0, 5)
+    .map(item => ({
+      time: item.time,
+      temperature: Math.round(item.data.instant.details.air_temperature),
+      symbol: item.data.next_1_hours?.summary?.symbol_code || 'clearsky_day',
+      windSpeed: Math.round(item.data.instant.details.wind_speed || 0),
+      windDirection: item.data.instant.details.wind_from_direction
+    }));
+
+  return {
+    today: todayForecasts,
+    tomorrow: tomorrowForecasts,
+    timestamp: new Date().toISOString(),
+    source: 'yr.no'
+  };
 }
