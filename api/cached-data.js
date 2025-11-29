@@ -42,7 +42,7 @@ module.exports = async function handler(req, res) {
       message: 'Test mode - cache refresh endpoint working',
       environment: {
         CRON_SECRET: !!process.env.CRON_SECRET,
-        REDIS_CLOUD_URL: !!process.env.REDIS_CLOUD_URL,
+        REDIS_URL: !!process.env.REDIS_URL,
         HOMEY_CLIENT_ID: !!process.env.HOMEY_CLIENT_ID
       },
       timestamp: new Date().toISOString()
