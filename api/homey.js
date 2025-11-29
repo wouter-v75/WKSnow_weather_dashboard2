@@ -1,326 +1,72 @@
 /**
- * Vercel Serverless Function: Homey API with Long-Term OAuth Authentication
+ * Vercel Serverless Function: Homey API with Redis Cloud Caching
  * 
- * This uses OAuth refresh tokens which never expire (unless revoked or 6 months inactive)
- * Environment variables required in Vercel:
- * - HOMEY_CLIENT_ID (from HomeyScript OAuth app - NOT Web App)
+ * Compatible with your existing Redis Cloud database
+ * Uses REDIS_URL environment variable (already configured)
+ * 
+ * Environment variables required:
+ * - REDIS_URL (already set by Vercel Redis Cloud)
+ * - HOMEY_CLIENT_ID
  * - HOMEY_CLIENT_SECRET
- * - HOMEY_REFRESH_TOKEN (obtained once, then stored)
+ * - HOMEY_USERNAME
+ * - HOMEY_PASSWORD
  * - HOMEY_DEVICE_ID_TEMP
  * - HOMEY_DEVICE_ID_HUMIDITY (optional)
  */
 
-const fetch = require('node-fetch');
+const AthomCloudAPI = require('homey-api/lib/AthomCloudAPI');
+const { createClient } = require('redis');
 
-// Token cache (persists across function invocations in same container)
-let cachedAccessToken = null;
-let tokenExpiry = null;
+const CACHE_KEY = 'homey_current';
+const HISTORY_KEY = 'homey_history';
+const CACHE_DURATION = 15 * 60; // 15 minutes in seconds
+const MAX_HISTORY_POINTS = 12;
 
-/**
- * Get fresh access token using refresh token
- * Refresh tokens never expire (unless revoked or 6 months inactive)
- */
-async function getAccessToken() {
-  // Return cached token if still valid (with 5 minute buffer)
-  const now = Date.now();
-  if (cachedAccessToken && tokenExpiry && (tokenExpiry - now) > 5 * 60 * 1000) {
-    console.log('Using cached access token');
-    return cachedAccessToken;
-  }
+// Redis client (reused across invocations)
+let redisClient = null;
+let cachedHomeyApi = null;
+let cacheTimestamp = null;
+const API_CACHE_DURATION = 5 * 60 * 1000;
 
-  console.log('Refreshing access token...');
-  
-  try {
-    // Exchange refresh token for new access token
-    const response = await fetch('https://api.athom.com/oauth2/token', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/x-www-form-urlencoded',
-        'Authorization': 'Basic ' + Buffer.from(
-          `${process.env.HOMEY_CLIENT_ID}:${process.env.HOMEY_CLIENT_SECRET}`
-        ).toString('base64')
-      },
-      body: `grant_type=refresh_token&refresh_token=${process.env.HOMEY_REFRESH_TOKEN}`
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`Token refresh failed: ${response.status} - ${errorText}`);
-    }
-
-    const tokenData = await response.json();
-    
-    // Cache the new access token
-    cachedAccessToken = tokenData.access_token;
-    tokenExpiry = now + (tokenData.expires_in * 1000); // Convert seconds to ms
-    
-    console.log('Access token refreshed successfully');
-    return cachedAccessToken;
-    
-  } catch (error) {
-    console.error('Error refreshing token:', error.message);
-    throw error;
-  }
-}
-
-/**
- * Get delegation token for Homey access
- */
-async function getDelegationToken(accessToken) {
-  try {
-    console.log('Requesting delegation token from Athom API...');
-    const response = await fetch('https://api.athom.com/delegation/token?audience=homey', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/x-www-form-urlencoded',
-        'Authorization': `Bearer ${accessToken}`
+async function getRedisClient() {
+  if (!redisClient || !redisClient.isOpen) {
+    redisClient = createClient({
+      url: process.env.REDIS_URL,
+      socket: {
+        reconnectStrategy: (retries) => {
+          if (retries > 3) return new Error('Max retries reached');
+          return Math.min(retries * 100, 3000);
+        }
       }
     });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error('Delegation token request failed:', {
-        status: response.status,
-        statusText: response.statusText,
-        body: errorText
-      });
-      throw new Error(`Delegation token failed: ${response.status}`);
-    }
-
-    // Check if response is JSON or plain text
-    const contentType = response.headers.get('content-type');
-    let delegationToken;
     
-    if (contentType && contentType.includes('application/json')) {
-      const json = await response.json();
-      delegationToken = json.token || json;
-      console.log('Delegation token (JSON):', {
-        hasToken: !!json.token,
-        tokenLength: delegationToken.length
-      });
-    } else {
-      delegationToken = await response.text();
-      console.log('Delegation token (text):', {
-        tokenLength: delegationToken.length,
-        starts: delegationToken.substring(0, 20) + '...'
-      });
-    }
-    
-    return delegationToken;
-    
-  } catch (error) {
-    console.error('Error getting delegation token:', error.message);
-    throw error;
+    redisClient.on('error', (err) => console.error('Redis Client Error:', err));
+    await redisClient.connect();
+    console.log('✅ Connected to Redis Cloud');
   }
-}
-
-/**
- * Get user info and Homey details
- */
-async function getHomeyInfo(accessToken) {
-  try {
-    const response = await fetch('https://api.athom.com/user/me', {
-      method: 'GET',
-      headers: {
-        'Authorization': `Bearer ${accessToken}`
-      }
-    });
-
-    if (!response.ok) {
-      throw new Error(`Failed to get user info: ${response.status}`);
-    }
-
-    const userData = await response.json();
-    
-    // Get first Homey
-    if (!userData.homeys || userData.homeys.length === 0) {
-      throw new Error('No Homeys found for this account');
-    }
-
-    const homey = userData.homeys[0];
-    return {
-      homeyId: homey._id,
-      remoteUrl: homey.remoteUrl || homey.remoteUrlSecure
-    };
-    
-  } catch (error) {
-    console.error('Error getting Homey info:', error.message);
-    throw error;
-  }
-}
-
-/**
- * Create session on Homey
- */
-async function createHomeySession(delegationToken, remoteUrl) {
-  try {
-    console.log('Creating Homey session...', {
-      remoteUrl,
-      tokenLength: delegationToken.length,
-      tokenStart: delegationToken.substring(0, 20) + '...'
-    });
-    
-    const response = await fetch(`${remoteUrl}/api/manager/users/login`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({ token: delegationToken })
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error('Homey session creation failed:', {
-        status: response.status,
-        statusText: response.statusText,
-        body: errorText,
-        url: `${remoteUrl}/api/manager/users/login`
-      });
-      throw new Error(`Homey session creation failed: ${response.status}`);
-    }
-
-    // Session token might be JSON or plain text
-    const contentType = response.headers.get('content-type');
-    let sessionToken;
-    
-    if (contentType && contentType.includes('application/json')) {
-      const json = await response.json();
-      
-      // Token might be in json.token, json.bearer_token, or json itself might be a string
-      if (json.token) {
-        sessionToken = json.token;
-      } else if (json.bearer_token) {
-        sessionToken = json.bearer_token;
-      } else if (typeof json === 'string') {
-        sessionToken = json;
-      } else {
-        // Entire response is the token as JSON string
-        sessionToken = JSON.stringify(json);
-      }
-      
-      // Remove quotes if present (sometimes token is returned as JSON string)
-      sessionToken = sessionToken.replace(/^"(.*)"$/, '$1');
-      
-      console.log('Homey session created (JSON):', {
-        hasToken: !!json.token,
-        hasBearerToken: !!json.bearer_token,
-        tokenLength: sessionToken.length,
-        tokenStart: sessionToken.substring(0, 30) + '...'
-      });
-    } else {
-      sessionToken = await response.text();
-      // Remove quotes if present
-      sessionToken = sessionToken.replace(/^"(.*)"$/, '$1');
-      
-      console.log('Homey session created (text):', {
-        tokenLength: sessionToken.length
-      });
-    }
-    
-    return sessionToken;
-    
-  } catch (error) {
-    console.error('Error creating Homey session:', error.message);
-    throw error;
-  }
-}
-
-/**
- * Get ALL devices from Homey, then extract specific device data
- */
-async function getDeviceData(sessionToken, remoteUrl, deviceId) {
-  try {
-    // Fetch ALL devices at once (this is more reliable)
-    const url = `${remoteUrl}/api/manager/devices/device`;
-    console.log('Fetching all devices from Homey...');
-    
-    const response = await fetch(url, {
-      method: 'GET',
-      headers: {
-        'Authorization': `Bearer ${sessionToken}`
-      }
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error('Failed to fetch devices:', {
-        status: response.status,
-        statusText: response.statusText,
-        url,
-        body: errorText
-      });
-      throw new Error(`Failed to get devices: ${response.status} - ${errorText}`);
-    }
-
-    const allDevices = await response.json();
-    console.log('All devices received, total count:', Object.keys(allDevices).length);
-    
-    // Find the specific device by ID
-    const device = allDevices[deviceId];
-    
-    if (!device) {
-      console.error('Device not found in response:', {
-        requestedId: deviceId,
-        availableIds: Object.keys(allDevices).slice(0, 5) // Show first 5
-      });
-      throw new Error(`Device ${deviceId} not found in Homey`);
-    }
-    
-    console.log('Device found:', {
-      id: deviceId,
-      name: device.name,
-      hasCapabilitiesObj: !!device.capabilitiesObj,
-      hasCapabilities: !!device.capabilities
-    });
-    
-    // Extract sensor values
-    const caps = device.capabilitiesObj || device.capabilities || {};
-    const data = {};
-    
-    if (caps.measure_temperature) {
-      data.temperature = caps.measure_temperature.value;
-    } else if (caps.temperature) {
-      data.temperature = caps.temperature.value;
-    }
-    
-    if (caps.measure_humidity) {
-      data.humidity = caps.measure_humidity.value;
-    } else if (caps.humidity) {
-      data.humidity = caps.humidity.value;
-    }
-    
-    console.log('Extracted sensor data:', data);
-    return data;
-    
-  } catch (error) {
-    console.error(`Error getting device ${deviceId}:`, error.message);
-    throw error;
-  }
+  return redisClient;
 }
 
 export default async function handler(req, res) {
-  // Enable CORS
   res.setHeader('Access-Control-Allow-Credentials', true);
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'X-Requested-With, Content-Type, Accept');
 
-  // Handle preflight
   if (req.method === 'OPTIONS') {
     return res.status(200).json({ message: 'OK' });
   }
 
-  // Only allow GET requests
   if (req.method !== 'GET') {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
   try {
-    // Validate environment variables
     const requiredEnvVars = [
       'HOMEY_CLIENT_ID',
       'HOMEY_CLIENT_SECRET',
-      'HOMEY_REFRESH_TOKEN',
+      'HOMEY_USERNAME',
+      'HOMEY_PASSWORD',
       'HOMEY_DEVICE_ID_TEMP'
     ];
 
@@ -328,79 +74,60 @@ export default async function handler(req, res) {
     if (missingVars.length > 0) {
       return res.status(500).json({
         error: 'Configuration error',
-        message: `Missing environment variables: ${missingVars.join(', ')}`,
-        note: 'Run the initial setup to get your refresh token'
+        message: `Missing environment variables: ${missingVars.join(', ')}`
       });
     }
 
-    console.log('Starting OAuth flow with refresh token...');
-    
-    // Step 1: Get fresh access token using refresh token
-    const accessToken = await getAccessToken();
-    
-    // Step 2: Get Homey info
-    const { remoteUrl } = await getHomeyInfo(accessToken);
-    
-    // Step 3: Get delegation token
-    const delegationToken = await getDelegationToken(accessToken);
-    
-    // Step 4: Try using delegation token directly (newer Homey API)
-    // If that fails, fall back to session creation (older API)
-    let authToken = delegationToken;
-    
-    try {
-      console.log('Trying delegation token directly...');
-      // Test if delegation token works directly
-      const testResponse = await fetch(`${remoteUrl}/api/manager/devices/device/${process.env.HOMEY_DEVICE_ID_TEMP}`, {
-        method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${delegationToken}`
-        }
+    const hasRedis = process.env.REDIS_URL;
+
+    if (!hasRedis) {
+      console.log('Redis not configured, fetching fresh data only');
+      const freshData = await fetchHomeyData();
+      return res.status(200).json({
+        current: freshData,
+        history: []
       });
-      
-      if (!testResponse.ok) {
-        throw new Error('Delegation token not accepted directly');
-      }
-      console.log('✓ Delegation token works directly');
-    } catch (error) {
-      console.log('Delegation token failed, creating session...', error.message);
-      // Fall back to session creation
-      authToken = await createHomeySession(delegationToken, remoteUrl);
     }
+
+    // Try to get cached data
+    const cachedData = await getCachedData();
     
-    // Step 5: Fetch temperature data
-    const tempData = await getDeviceData(
-      authToken,
-      remoteUrl,
-      process.env.HOMEY_DEVICE_ID_TEMP
-    );
-    
-    // Step 6: Fetch humidity data (may be same or different device)
-    let humidityData = tempData;
-    const humidityDeviceId = process.env.HOMEY_DEVICE_ID_HUMIDITY;
-    
-    if (humidityDeviceId && humidityDeviceId !== process.env.HOMEY_DEVICE_ID_TEMP) {
-      try {
-        humidityData = await getDeviceData(authToken, remoteUrl, humidityDeviceId);
-      } catch (error) {
-        console.warn('Could not fetch separate humidity sensor:', error.message);
-      }
+    if (cachedData) {
+      console.log('Returning cached Homey data');
+      return res.status(200).json(cachedData);
     }
+
+    // No cache, fetch fresh data
+    console.log('Cache miss, fetching fresh Homey data');
+    const freshData = await fetchHomeyData();
     
-    // Return combined data
+    // Get existing history and update it
+    const history = await getTemperatureHistory();
+    const updatedHistory = await updateHistory(history, freshData.temperature);
+    
     const responseData = {
-      temperature: tempData.temperature,
-      humidity: humidityData.humidity || tempData.humidity,
-      timestamp: new Date().toISOString(),
-      source: 'homey-oauth-longterm'
+      current: freshData,
+      history: updatedHistory,
+      timestamp: new Date().toISOString()
     };
     
-    console.log('Successfully fetched sensor data:', responseData);
+    // Cache the data
+    await setCachedData(responseData);
     
     return res.status(200).json(responseData);
-    
+
   } catch (error) {
-    console.error('Homey OAuth API Error:', error);
+    console.error('Homey API Error:', error);
+    
+    // Try to return stale cache if available
+    const staleData = await getCachedData(true);
+    if (staleData) {
+      console.log('Returning stale cache due to error');
+      return res.status(200).json({
+        ...staleData,
+        warning: 'Using cached data due to API error'
+      });
+    }
     
     return res.status(500).json({
       error: 'Failed to fetch Homey data',
@@ -408,4 +135,161 @@ export default async function handler(req, res) {
       timestamp: new Date().toISOString()
     });
   }
+}
+
+async function getCachedData(ignoreExpiry = false) {
+  try {
+    const redis = await getRedisClient();
+    const cached = await redis.get(CACHE_KEY);
+    
+    if (!cached) {
+      return null;
+    }
+
+    const cachedData = JSON.parse(cached);
+    
+    if (!ignoreExpiry) {
+      const cacheAge = (Date.now() - new Date(cachedData.timestamp).getTime()) / 1000;
+      if (cacheAge > CACHE_DURATION) {
+        console.log(`Cache expired (${Math.round(cacheAge)}s old)`);
+        return null;
+      }
+    }
+    
+    return cachedData;
+  } catch (error) {
+    console.error('Error getting cached data:', error);
+    return null;
+  }
+}
+
+async function setCachedData(data) {
+  try {
+    const redis = await getRedisClient();
+    await redis.setEx(CACHE_KEY, CACHE_DURATION * 2, JSON.stringify(data));
+    console.log('Homey data cached successfully');
+  } catch (error) {
+    console.error('Error caching data:', error);
+  }
+}
+
+async function getTemperatureHistory() {
+  try {
+    const redis = await getRedisClient();
+    const history = await redis.get(HISTORY_KEY);
+    return history ? JSON.parse(history) : [];
+  } catch (error) {
+    console.error('Error getting history:', error);
+    return [];
+  }
+}
+
+async function updateHistory(currentHistory, newTemperature) {
+  if (newTemperature === null || newTemperature === undefined) {
+    return currentHistory;
+  }
+
+  const now = new Date();
+  const newPoint = {
+    time: now.toISOString(),
+    temperature: parseFloat(newTemperature),
+    label: now.toLocaleTimeString('en-NO', { hour: '2-digit', minute: '2-digit' })
+  };
+
+  let updatedHistory = [...currentHistory, newPoint];
+  const shouldKeep = updatedHistory.length % 4 === 0 || updatedHistory.length <= MAX_HISTORY_POINTS;
+  
+  if (!shouldKeep && updatedHistory.length > 1) {
+    updatedHistory.splice(-2, 1);
+  }
+
+  if (updatedHistory.length > MAX_HISTORY_POINTS) {
+    updatedHistory = updatedHistory.slice(-MAX_HISTORY_POINTS);
+  }
+
+  try {
+    const redis = await getRedisClient();
+    await redis.setEx(HISTORY_KEY, 24 * 60 * 60, JSON.stringify(updatedHistory));
+    console.log(`History updated: ${updatedHistory.length} points`);
+  } catch (error) {
+    console.error('Error saving history:', error);
+  }
+
+  return updatedHistory;
+}
+
+async function getHomeyApi() {
+  const now = Date.now();
+  
+  if (cachedHomeyApi && cacheTimestamp && (now - cacheTimestamp) < API_CACHE_DURATION) {
+    console.log('Using cached Homey API connection');
+    return cachedHomeyApi;
+  }
+  
+  console.log('Creating new Homey API connection...');
+  const cloudApi = new AthomCloudAPI({
+    clientId: process.env.HOMEY_CLIENT_ID,
+    clientSecret: process.env.HOMEY_CLIENT_SECRET,
+  });
+
+  await cloudApi.authenticateWithUsernamePassword({
+    username: process.env.HOMEY_USERNAME,
+    password: process.env.HOMEY_PASSWORD,
+  });
+
+  const user = await cloudApi.getAuthenticatedUser();
+  const homey = await user.getFirstHomey();
+  const homeyApi = await homey.authenticate();
+  
+  cachedHomeyApi = homeyApi;
+  cacheTimestamp = now;
+  
+  console.log('Homey API connection established');
+  return homeyApi;
+}
+
+async function getDeviceData(homeyApi, deviceId) {
+  const device = await homeyApi.devices.getDevice({ id: deviceId });
+  const caps = device.capabilitiesObj || device.capabilities || {};
+  
+  const data = {};
+  
+  if (caps.measure_temperature) {
+    data.temperature = caps.measure_temperature.value;
+  } else if (caps.temperature) {
+    data.temperature = caps.temperature.value;
+  }
+  
+  if (caps.measure_humidity) {
+    data.humidity = caps.measure_humidity.value;
+  } else if (caps.humidity) {
+    data.humidity = caps.humidity.value;
+  }
+  
+  return data;
+}
+
+async function fetchHomeyData() {
+  const homeyApi = await getHomeyApi();
+  
+  const tempDeviceId = process.env.HOMEY_DEVICE_ID_TEMP;
+  const tempData = await getDeviceData(homeyApi, tempDeviceId);
+  
+  let humidityData = tempData;
+  const humidityDeviceId = process.env.HOMEY_DEVICE_ID_HUMIDITY;
+  
+  if (humidityDeviceId && humidityDeviceId !== tempDeviceId) {
+    try {
+      humidityData = await getDeviceData(homeyApi, humidityDeviceId);
+    } catch (error) {
+      console.warn('Using temp sensor for humidity:', error.message);
+    }
+  }
+  
+  return {
+    temperature: tempData.temperature !== undefined ? parseFloat(tempData.temperature.toFixed(1)) : null,
+    humidity: (humidityData.humidity || tempData.humidity) !== undefined ? 
+      Math.round(humidityData.humidity || tempData.humidity) : null,
+    source: 'homey-pro'
+  };
 }
