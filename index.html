@@ -2249,36 +2249,25 @@
             if (conditionLower.includes('fog')) return '🌫️';
             return '🌤️';
         }
+        // ========== CACHE INTEGRATION FUNCTIONS ==========
 
-        // ========== MAIN REFRESH FUNCTION ==========
-
-        
-        // Load data from cache
-        async function loadFromCache() {
-        try {
-            console.log('📦 Loading from cache...');
-            const response = await fetch('/api/cached-data.js?type=all');
-            if (!response.ok) {
-              console.log('⚠️ Cache not available');
-            return null;
-            }
-            const cached = await response.json();
-            console.log('✅ Cache loaded!', cached);
-            return cached.data;
-            } catch (error) {
-            console.error('❌ Cache load failed:', error);
-            return null;
-             }
-         }
-// Convert cached forecast back to display format
+// Helper: Update forecast from cache
 function updateForecastFromCache(cachedForecast) {
-    const forecastContent = document.getElementById('forecast-content');
-    forecastContent.innerHTML = '';
+    if (!cachedForecast || !cachedForecast.fc) return;
     
-    const today = new Date().toDateString();
-    const todayForecasts = cachedForecast.fc.filter((item, index) => {
+    const forecastContent = document.getElementById('forecast-content');
+    const tomorrowContent = document.getElementById('tomorrow-content');
+    
+    forecastContent.innerHTML = '';
+    if (tomorrowContent) tomorrowContent.innerHTML = '';
+    
+    const now = new Date();
+    const today = now.toDateString();
+    
+    // Today's forecast
+    const todayForecasts = cachedForecast.fc.filter(item => {
         const itemDate = new Date(item.t);
-        return itemDate.toDateString() === today;
+        return itemDate.toDateString() === today && itemDate > now;
     }).slice(0, 6);
     
     todayForecasts.forEach(item => {
@@ -2300,11 +2289,41 @@ function updateForecastFromCache(cachedForecast) {
     
     document.getElementById('forecast-status').className = 'status-indicator status-online';
     
-    // Apply Swix colors to forecast temps
+    // Tomorrow's forecast (if element exists)
+    if (tomorrowContent) {
+        const tomorrow = new Date(now.getTime() + 24 * 60 * 60 * 1000);
+        const tomorrowDateString = tomorrow.toDateString();
+        
+        const tomorrowForecasts = cachedForecast.fc.filter(item => {
+            const itemDate = new Date(item.t);
+            const itemHour = itemDate.getHours();
+            return itemDate.toDateString() === tomorrowDateString && itemHour >= 6 && itemHour <= 18;
+        }).slice(0, 5);
+        
+        tomorrowForecasts.forEach(item => {
+            const time = new Date(item.t);
+            const forecastItem = document.createElement('div');
+            forecastItem.className = 'forecast-item';
+            forecastItem.innerHTML = `
+                <div class="forecast-time">${time.toLocaleTimeString('en-NO', {hour: '2-digit', minute: '2-digit'})}</div>
+                <div class="forecast-icon">${getWeatherIcon(item.sym)}</div>
+                <div class="forecast-temp">${item.temp}°C</div>
+                <div class="forecast-wind">
+                    <span class="wind-arrow">${getWindArrow(item.windDir)}</span>
+                    <span class="wind-speed">${item.wind} m/s</span>
+                </div>
+                <div class="forecast-desc">${getWeatherDescription(item.sym)}</div>
+            `;
+            tomorrowContent.appendChild(forecastItem);
+        });
+        
+        document.getElementById('tomorrow-status').className = 'status-indicator status-online';
+    }
+    
     setTimeout(() => applyAllSwixColors(), 200);
 }
 
-// Update temperature chart from cached history
+// Helper: Update temp chart from history
 function updateTempChartFromHistory(historyArray) {
     if (!tempChart || !historyArray || historyArray.length === 0) {
         console.log('⚠️ No temperature history available yet');
@@ -2318,12 +2337,7 @@ function updateTempChartFromHistory(historyArray) {
     
     historyArray.forEach(entry => {
         const date = new Date(entry.ts);
-        const timeLabel = date.toLocaleTimeString('en-NO', {
-            hour: '2-digit',
-            minute: '2-digit'
-        });
-        
-        labels.push(timeLabel);
+        labels.push(date.toLocaleTimeString('en-NO', {hour: '2-digit', minute: '2-digit'}));
         outdoor.push(entry.h);
         hafjellTop.push(entry.t);
         hafjellBottom.push(entry.b);
@@ -2333,13 +2347,111 @@ function updateTempChartFromHistory(historyArray) {
     tempChart.data.datasets[0].data = outdoor;
     tempChart.data.datasets[1].data = hafjellTop;
     tempChart.data.datasets[2].data = hafjellBottom;
-    
     tempChart.update('none');
     
-    console.log(`✅ Temperature chart updated with ${historyArray.length} historical data points`);
+    console.log(`✅ Temperature chart updated with ${historyArray.length} data points`);
 }
+
+// Main refresh function
+async function refreshAllData() {
+    const refreshBtn = document.querySelector('.refresh-btn');
+    if (refreshBtn) {
+        refreshBtn.disabled = true;
+        refreshBtn.textContent = '🔄 Refreshing...';
+    }
+    
+    document.querySelectorAll('.card').forEach(card => card.classList.add('loading'));
+    
+    try {
+        console.log('🚀 Loading from optimized cache...');
         
+        // Correct URL with ?action=get
+        const response = await fetch('/api/cached-data.js?action=get');
         
+        if (!response.ok) {
+            throw new Error(`Cache fetch failed: ${response.status}`);
+        }
+        
+        const cacheData = await response.json();
+        console.log('✅ Cache loaded:', cacheData);
+        
+        if (cacheData.success && cacheData.data) {
+            // Update Homey sensors
+            if (cacheData.data.homey && cacheData.data.homey.temp !== null) {
+                document.getElementById('outdoor-temp').textContent = cacheData.data.homey.temp + '°C';
+                document.getElementById('outdoor-humidity').textContent = cacheData.data.homey.hum + '%';
+                document.getElementById('sensor-status').className = 'status-indicator status-online';
+                setTimeout(() => applySwixColorToElement('outdoor-temp', cacheData.data.homey.temp), 50);
+            }
+            
+            // Update Hafjell weather
+            if (cacheData.data.hafjell) {
+                const h = cacheData.data.hafjell;
+                
+                document.getElementById('top-temp').textContent = h.top.temp + '°C';
+                document.getElementById('top-desc').textContent = h.top.cond;
+                document.getElementById('top-wind').textContent = h.top.wind + ' m/s';
+                document.getElementById('top-snow').textContent = h.top.snow + ' cm';
+                document.getElementById('top-snow-day').textContent = h.top.snowDay + ' cm';
+                document.getElementById('top-icon').textContent = getWeatherIconFromCondition(h.top.cond);
+                
+                document.getElementById('bottom-temp').textContent = h.bottom.temp + '°C';
+                document.getElementById('bottom-desc').textContent = h.bottom.cond;
+                document.getElementById('bottom-wind').textContent = h.bottom.wind + ' m/s';
+                document.getElementById('bottom-snow').textContent = h.bottom.snow + ' cm';
+                document.getElementById('bottom-snow-day').textContent = h.bottom.snowDay + ' cm';
+                document.getElementById('bottom-icon').textContent = getWeatherIconFromCondition(h.bottom.cond);
+                
+                document.getElementById('hafjell-status').className = 'status-indicator status-online';
+                
+                setTimeout(() => {
+                    applySwixColorToElement('top-temp', h.top.temp);
+                    applySwixColorToElement('bottom-temp', h.bottom.temp);
+                }, 50);
+            }
+            
+            // Update lifts
+            if (cacheData.data.lifts && cacheData.data.lifts.lifts) {
+                Object.keys(cacheData.data.lifts.lifts).forEach(liftKey => {
+                    const liftElement = document.getElementById(`lift-${liftKey}`);
+                    if (liftElement) {
+                        const status = cacheData.data.lifts.lifts[liftKey] === 1 ? 'open' : 'closed';
+                        liftElement.textContent = status.toUpperCase();
+                        liftElement.className = `lift-status ${status}`;
+                    }
+                });
+                document.getElementById('lifts-status').className = 'status-indicator status-online';
+            }
+            
+            // Update forecast
+            if (cacheData.data.forecast) {
+                updateForecastFromCache(cacheData.data.forecast);
+            }
+            
+            // Update temperature history
+            if (cacheData.data.tempHistory) {
+                updateTempChartFromHistory(cacheData.data.tempHistory);
+            }
+            
+            refreshWebcam();
+            updateTimestamp();
+            setTimeout(() => applyAllSwixColors(), 100);
+            
+            console.log('✅ Dashboard updated from cache');
+        }
+    } catch (error) {
+        console.error('❌ Cache error:', error);
+    } finally {
+        document.querySelectorAll('.card').forEach(card => card.classList.remove('loading'));
+        if (refreshBtn) {
+            refreshBtn.disabled = false;
+            refreshBtn.textContent = '🔄 Refresh';
+        }
+    }
+}
+
+// ========== END CACHE INTEGRATION ==========
+ 
         // ========== DASHBOARD INITIALIZATION ==========
 
         async function initDashboard() {
