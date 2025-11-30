@@ -122,25 +122,45 @@ async function storeTempHistory(redis, homeyTemp, hafjellTopTemp, hafjellBottomT
 // ========== DATA FETCHING FUNCTIONS ==========
 
 async function fetchHomeyData() {
-  console.log('📡 Fetching Homey sensor data...');
+  console.log('📡 Fetching Homey sensor data directly from Homey Cloud...');
   
   try {
-    const baseUrl = process.env.VERCEL_URL 
-      ? `https://${process.env.VERCEL_URL}` 
-      : 'https://wksnowdashboard.wvsailing.co.uk';
+    // Import Homey API
+    const AthomCloudAPI = require('homey-api/lib/AthomCloudAPI');
     
-    const response = await fetch(`${baseUrl}/api/homey.js`, {
-      method: 'GET',
-      headers: { 'Content-Type': 'application/json' }
+    // Create Cloud API instance
+    const cloudApi = new AthomCloudAPI({
+      clientId: process.env.HOMEY_CLIENT_ID,
+      clientSecret: process.env.HOMEY_CLIENT_SECRET,
     });
+
+    // Authenticate
+    await cloudApi.authenticateWithUsernamePassword({
+      username: process.env.HOMEY_USERNAME,
+      password: process.env.HOMEY_PASSWORD,
+    });
+
+    // Get user and first Homey
+    const user = await cloudApi.getAuthenticatedUser();
+    const homey = await user.getFirstHomey();
     
-    if (!response.ok) {
-      throw new Error(`Homey API error: ${response.status}`);
-    }
+    // Create session
+    const homeyApi = await homey.authenticate();
     
-    const data = await response.json();
-    console.log('✅ Homey data fetched');
+    // Get temperature device
+    const tempDeviceId = process.env.HOMEY_DEVICE_ID_TEMP;
+    const tempDevice = await homeyApi.devices.getDevice({ id: tempDeviceId });
+    
+    const caps = tempDevice.capabilitiesObj || tempDevice.capabilities || {};
+    
+    const data = {
+      temperature: caps.measure_temperature?.value || caps.temperature?.value,
+      humidity: caps.measure_humidity?.value || caps.humidity?.value
+    };
+    
+    console.log('✅ Homey data fetched:', data);
     return data;
+    
   } catch (error) {
     console.error('❌ Homey fetch error:', error.message);
     return null;
