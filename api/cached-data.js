@@ -121,48 +121,92 @@ async function storeTempHistory(redis, homeyTemp, hafjellTopTemp, hafjellBottomT
 
 // ========== DATA FETCHING FUNCTIONS ==========
 
+// Cache for Homey API connection (persists across function invocations)
+let cachedHomeyApi = null;
+let cacheTimestamp = null;
+const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
+
+async function getHomeyApi() {
+  const now = Date.now();
+  
+  // Return cached connection if still valid
+  if (cachedHomeyApi && cacheTimestamp && (now - cacheTimestamp) < CACHE_DURATION) {
+    console.log('✅ Using cached Homey API connection');
+    return cachedHomeyApi;
+  }
+  
+  console.log('Creating new Homey API connection...');
+  
+  const AthomCloudAPI = require('homey-api/lib/AthomCloudAPI');
+  
+  // Create Cloud API instance
+  const cloudApi = new AthomCloudAPI({
+    clientId: process.env.HOMEY_CLIENT_ID,
+    clientSecret: process.env.HOMEY_CLIENT_SECRET,
+  });
+
+  // Authenticate
+  await cloudApi.authenticate({
+    username: process.env.HOMEY_USERNAME,
+    password: process.env.HOMEY_PASSWORD,
+  });
+
+  // Get user and first Homey
+  const user = await cloudApi.getAuthenticatedUser();
+  const homey = await user.getFirstHomey();
+  
+  // Create session
+  const homeyApi = await homey.authenticate();
+  
+  // Cache the connection
+  cachedHomeyApi = homeyApi;
+  cacheTimestamp = now;
+  
+  console.log('✅ Homey API connection established and cached');
+  return homeyApi;
+}
+
 async function fetchHomeyData() {
-  console.log('📡 Fetching Homey sensor data directly from Homey Cloud...');
+  console.log('📡 Fetching Homey sensor data...');
   
   try {
-    // Import Homey API
-    const AthomCloudAPI = require('homey-api/lib/AthomCloudAPI');
+    // Verify environment variables
+    if (!process.env.HOMEY_CLIENT_ID || !process.env.HOMEY_CLIENT_SECRET) {
+      throw new Error('Missing Homey OAuth credentials');
+    }
+    if (!process.env.HOMEY_USERNAME || !process.env.HOMEY_PASSWORD) {
+      throw new Error('Missing Homey account credentials');
+    }
+    if (!process.env.HOMEY_DEVICE_ID_TEMP) {
+      throw new Error('Missing HOMEY_DEVICE_ID_TEMP');
+    }
     
-    // Create Cloud API instance
-    const cloudApi = new AthomCloudAPI({
-      clientId: process.env.HOMEY_CLIENT_ID,
-      clientSecret: process.env.HOMEY_CLIENT_SECRET,
-    });
-
-    // Authenticate
-    await cloudApi.authenticateWithUsernamePassword({
-      username: process.env.HOMEY_USERNAME,
-      password: process.env.HOMEY_PASSWORD,
-    });
-
-    // Get user and first Homey
-    const user = await cloudApi.getAuthenticatedUser();
-    const homey = await user.getFirstHomey();
-    
-    // Create session
-    const homeyApi = await homey.authenticate();
+    // Get Homey API connection
+    const homeyApi = await getHomeyApi();
     
     // Get temperature device
     const tempDeviceId = process.env.HOMEY_DEVICE_ID_TEMP;
-    const tempDevice = await homeyApi.devices.getDevice({ id: tempDeviceId });
+    console.log('Fetching device:', tempDeviceId);
     
-    const caps = tempDevice.capabilitiesObj || tempDevice.capabilities || {};
+    const device = await homeyApi.devices.getDevice({ id: tempDeviceId });
+    const caps = device.capabilitiesObj || device.capabilities || {};
     
     const data = {
       temperature: caps.measure_temperature?.value || caps.temperature?.value,
       humidity: caps.measure_humidity?.value || caps.humidity?.value
     };
     
-    console.log('✅ Homey data fetched:', data);
+    console.log('✅ Homey data fetched successfully:', data);
     return data;
     
   } catch (error) {
     console.error('❌ Homey fetch error:', error.message);
+    console.error('Stack:', error.stack);
+    
+    // Clear cache on error
+    cachedHomeyApi = null;
+    cacheTimestamp = null;
+    
     return null;
   }
 }
