@@ -4,22 +4,10 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="description" content="WK Snow Weather Dashboard - Real-time weather data from Homey Pro, Hafjell stations, and YR.no forecast">
-    <meta name="keywords" content="weather, dashboard, homey pro, hafjell, yr.no, snow, glassmorphism">
-    <meta name="author" content="WK Weather Dashboard">
-    
-    <!-- PWA Meta Tags -->
-    <meta name="theme-color" content="#667eea">
-    <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <meta name="apple-mobile-web-app-title" content="WK Weather">
-    
     <title>WK Snow Weather Dashboard</title>
     
     <!-- Chart.js CDN -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
-    
-    <!-- Load external config if available (NOT committed to GitHub) -->
-    <script src="config.js" onerror="console.log('External config not found, using defaults')"></script>
     
     <style>
         /* ========== LOGIN STYLES ========== */
@@ -253,12 +241,6 @@
             padding-bottom: 6px;
             border-bottom: 1px solid rgba(255, 255, 255, 0.2);
             flex-shrink: 0;
-        }
-
-        .card-icon {
-            font-size: 1.2rem;
-            margin-right: 8px;
-            text-shadow: 0 0 10px rgba(255, 255, 255, 0.5);
         }
 
         .card-title {
@@ -623,76 +605,41 @@
             pointer-events: none;
         }
 
-        .sensor-item:hover,
-        .detail-item:hover {
-            background: rgba(255, 255, 255, 0.35);
-            transform: translateY(-1px);
-            transition: all 0.3s ease;
-        }
-
-        .error-message {
-            color: rgba(255, 255, 255, 0.7);
-            font-size: 0.7rem;
-            text-align: center;
-            padding: 8px;
-            background: rgba(231, 76, 60, 0.2);
-            border: 1px solid rgba(231, 76, 60, 0.3);
-            border-radius: 8px;
-            margin: 4px 0;
-            text-shadow: 1px 1px 2px rgba(0,0,0,0.6);
-        }
-
-        /* ========== SWIX TEMPERATURE COLOR CODING (OFFICIAL RANGES) ========== */
+        /* ========== SWIX TEMPERATURE COLOR CODING ========== */
         .swix-temp-yellow {
-            color: #FFD700 !important; /* Yellow: 0°C to +10°C (32°F to 50°F) - Hot conditions */
+            color: #FFD700 !important;
             text-shadow: 2px 2px 6px rgba(0,0,0,0.9) !important;
             font-weight: bold !important;
         }
 
         .swix-temp-red {
-            color: #FF0000 !important; /* Red: -4°C to +4°C (25°F to 39°F) - Warm conditions */
+            color: #FF0000 !important;
             text-shadow: 2px 2px 6px rgba(0,0,0,0.9) !important;
             font-weight: bold !important;
         }
 
         .swix-temp-violet {
-            color: #8A2BE2 !important; /* Violet: -2°C to -8°C (28°F to 18°F) - Cool conditions */
+            color: #8A2BE2 !important;
             text-shadow: 2px 2px 6px rgba(0,0,0,0.9) !important;
             font-weight: bold !important;
         }
 
         .swix-temp-blue {
-            color: #0066FF !important; /* Blue: -6°C to -12°C (21°F to 10°F) - Cold conditions */
+            color: #0066FF !important;
             text-shadow: 2px 2px 6px rgba(0,0,0,0.9) !important;
             font-weight: bold !important;
         }
 
         .swix-temp-green {
-            color: #00FFAA !important; /* Green/Turquoise: -10°C to -18°C (14°F to 0°F) - Very cold */
+            color: #00FFAA !important;
             text-shadow: 2px 2px 6px rgba(0,0,0,0.9) !important;
             font-weight: bold !important;
         }
 
         .swix-temp-polar {
-            color: #FFFFFF !important; /* White: Below -18°C (Below 0°F) - Polar conditions */
+            color: #FFFFFF !important;
             text-shadow: 2px 2px 6px rgba(0,0,0,0.9) !important;
             font-weight: bold !important;
-        }
-
-        @media (max-width: 1024px) and (orientation: landscape) {
-            .dashboard {
-                grid-template-columns: repeat(4, 1fr);
-                gap: 6px;
-                height: calc(100vh - 12px);
-            }
-            
-            .card {
-                padding: 10px;
-            }
-            
-            .header h1 {
-                font-size: 1.3rem;
-            }
         }
 
         @media (max-width: 768px) {
@@ -715,96 +662,6 @@
             }
         }
 
-/* ========== MOBILE LAYOUT (iPhone & Android) ========== */
-        
-        .dashboard.mobile-layout {
-            display: flex !important;
-            flex-direction: column !important;
-            gap: 12px !important;
-            height: auto !important;
-            overflow-y: auto !important;
-            padding-bottom: 80px;
-        }
-        
-        .dashboard.mobile-layout .header {
-            order: -1;
-        }
-        
-        .dashboard.mobile-layout .card {
-            width: 100% !important;
-            min-height: auto !important;
-            max-height: none !important;
-        }
-        
-        .dashboard.mobile-layout .forecast-column {
-            flex-direction: column !important;
-            width: 100% !important;
-        }
-        
-        .dashboard.mobile-layout .forecast-card {
-            width: 100% !important;
-        }
-        
-        body.is-mobile.dashboard-mode {
-            overflow-y: auto !important;
-            height: auto !important;
-            min-height: 100vh;
-        }
-        
-        body.is-mobile .sensor-grid {
-            grid-template-columns: 1fr 1fr;
-        }
-        
-        body.is-mobile .hafjell-stations {
-            grid-template-columns: 1fr;
-            gap: 15px;
-        }
-        
-        body.is-mobile .station-section {
-            padding: 10px 0;
-        }
-        
-        body.is-mobile .webcam-section {
-            min-height: 250px;
-        }
-        
-        body.is-mobile .lifts-grid {
-            grid-template-columns: 1fr;
-        }
-        
-        body.is-mobile .lift-item {
-            padding: 10px 12px;
-        }
-        
-        body.is-mobile .header h1 {
-            font-size: 1.3rem;
-        }
-        
-        body.is-mobile .header .timestamp {
-            font-size: 0.7rem;
-            bottom: auto;
-            top: 10px;
-            left: 10px;
-            padding: 6px 10px;
-        }
-        
-        body.is-mobile .refresh-btn {
-            bottom: 20px;
-            right: 20px;
-            padding: 12px 16px;
-            font-size: 0.8rem;
-            z-index: 1002;
-        }
-        
-        body.is-mobile .logout-btn {
-            top: 10px;
-            right: 10px;
-            padding: 8px 14px;
-            font-size: 0.75rem;
-        }
-
-
-        
         @keyframes aurora-glow {
             0%, 100% { opacity: 0.8; }
             50% { opacity: 1; }
@@ -879,7 +736,7 @@
             <div class="card" id="lifts-card">
                 <div class="card-header">
                     <div class="card-title">
-                        Hafjell Lifts (Real-Time)
+                        Hafjell Lifts
                         <span class="status-indicator status-offline" id="lifts-status"></span>
                     </div>
                 </div>
@@ -987,8 +844,6 @@
                             alt="Hafjell Webcam View" 
                             class="webcam-image"
                             id="hafjell-webcam"
-                            onload="console.log('Hafjell webcam loaded successfully')"
-                            onerror="console.log('Hafjell webcam failed to load'); this.style.display='none'; this.nextElementSibling.style.display='block';"
                         />
                         <div class="webcam-error" style="display: none;">
                             <span>📷 Webcam unavailable</span>
@@ -1003,7 +858,7 @@
                 <div class="card forecast-card" id="forecast-card">
                     <div class="card-header">
                         <div class="card-title">
-                            Mosetertoppen Today (YR.no)
+                            Mosetertoppen Today
                             <span class="status-indicator status-offline" id="forecast-status"></span>
                         </div>
                     </div>
@@ -1018,7 +873,7 @@
                 <div class="card forecast-card" id="tomorrow-card">
                     <div class="card-header">
                         <div class="card-title">
-                            Tomorrow's Forecast
+                            Tomorrow (3h intervals)
                             <span class="status-indicator status-offline" id="tomorrow-status"></span>
                         </div>
                     </div>
@@ -1035,55 +890,11 @@
     </div>
 
     <script>
-        // ========== AUTHENTICATION CONFIGURATION ==========
+        // ========== AUTHENTICATION ==========
         
         const AUTH_CONFIG = {
-            username: 'WK',              // 🎯 Your username
-            password: 'winter2025'       // 🎯 Your password
-        };
-
-        // ========== WEATHER DASHBOARD CONFIGURATION ==========
-        
-        const CONFIG = {
-            // Use external config if available, otherwise use placeholders for GitHub
-            homey: window.HOMEY_CONFIG || {
-                // Local Homey API (preferred for reliability)
-                localUrl: 'http://YOUR_HOMEY_IP',
-                bearerToken: 'YOUR_HOMEY_BEARER_TOKEN',
-                
-                // Cloud Homey API (works remotely)
-                cloudUrl: 'https://api.athom.com',
-                accessToken: 'YOUR_HOMEY_ACCESS_TOKEN',
-                
-                // Device configurations
-                devices: {
-                    // Main outdoor temperature sensor
-                    outdoorTempSensor: 'YOUR_OUTDOOR_SENSOR_DEVICE_ID',
-                    // Optional: separate humidity sensor (if different from temp sensor)
-                    outdoorHumiditySensor: 'YOUR_OUTDOOR_HUMIDITY_DEVICE_ID'
-                }
-            },
-            
-            // Mosetertoppen Skistadion location coordinates (813m elevation)
-            // This is the cross-country ski stadium, NOT the gondola top station
-            location: {
-                lat: 61.2430, // Mosetertoppen Skistadion (Idrettsanlegg)
-                lon: 10.4900  // 813 meters above sea level
-            },
-            
-            // Hafjell station elevations for accurate weather data
-            hafjellStations: {
-                top: {
-                    lat: 61.234381,
-                    lon: 10.448835,
-                    elevation: 1059 // Top station elevation in meters
-                },
-                bottom: {
-                    lat: 61.234381, 
-                    lon: 10.448835,
-                    elevation: 195 // Bottom station elevation in meters
-                }
-            }
+            username: 'WK',
+            password: 'winter2025'
         };
 
         // Temperature history storage
@@ -1095,225 +906,41 @@
         };
 
         let tempChart = null;
-        
-// ========== MOBILE DEVICE DETECTION ==========
-        
-        function isMobileDevice() {
-            const userAgent = navigator.userAgent || navigator.vendor || window.opera;
-            const isIOS = /iPad|iPhone|iPod/.test(userAgent) && !window.MSStream;
-            const isAndroid = /android/i.test(userAgent);
-            const isMobileScreen = window.innerWidth <= 768;
-            return isIOS || isAndroid || isMobileScreen;
-        }
-        
-        function applyMobileLayout() {
-            const dashboard = document.querySelector('.dashboard');
-            const body = document.body;
-            
-            if (dashboard && isMobileDevice()) {
-                console.log('📱 Mobile device detected - applying mobile layout');
-                dashboard.classList.add('mobile-layout');
-                body.classList.add('is-mobile');
-            } else if (dashboard) {
-                console.log('🖥️ Desktop device detected - using desktop layout');
-                dashboard.classList.remove('mobile-layout');
-                body.classList.remove('is-mobile');
-            }
-        }
-        
-        window.addEventListener('load', applyMobileLayout);
-        window.addEventListener('resize', applyMobileLayout);
-        const weatherIcons = {
-            'clear': '☀️',
-            'partly-cloudy': '⛅',
-            'cloudy': '☁️',
-            'rain': '🌧️',
-            'snow': '❄️',
-            'fog': '🌫️',
-            'default': '🌤️'
-        };
 
-        // ========== SWIX TEMPERATURE COLOR CODING (OFFICIAL SYSTEM) ==========
+        // ========== SWIX COLOR CODING ==========
         
         function getSwixColorClass(tempCelsius) {
-            if (tempCelsius === null || tempCelsius === undefined) {
-                return ''; // No color for invalid temperature
-            }
-            
+            if (tempCelsius === null || tempCelsius === undefined) return '';
             const temp = parseFloat(tempCelsius);
-            console.log(`🌡️ Getting Swix color for temperature: ${temp}°C`);
-            
-            // Official Swix wax temperature ranges based on kick wax and glide wax systems
-            if (temp >= 0) {
-                console.log(`📍 Temperature ${temp}°C -> YELLOW (Hot conditions)`);
-                return 'swix-temp-yellow';       // Yellow: 0°C to +10°C (32°F to 50°F) - Hot conditions
-            }
-            if (temp >= -4) {
-                console.log(`📍 Temperature ${temp}°C -> RED (Warm conditions)`);
-                return 'swix-temp-red';         // Red: -4°C to +4°C (25°F to 39°F) - Warm conditions  
-            }
-            if (temp >= -8) {
-                console.log(`📍 Temperature ${temp}°C -> VIOLET (Cool conditions)`);
-                return 'swix-temp-violet';      // Violet: -2°C to -8°C (28°F to 18°F) - Cool conditions
-            }
-            if (temp >= -12) {
-                console.log(`📍 Temperature ${temp}°C -> BLUE (Cold conditions)`);
-                return 'swix-temp-blue';       // Blue: -6°C to -12°C (21°F to 10°F) - Cold conditions
-            }
-            if (temp >= -18) {
-                console.log(`📍 Temperature ${temp}°C -> GREEN (Very cold)`);
-                return 'swix-temp-green';      // Green/Turquoise: -10°C to -18°C (14°F to 0°F) - Very cold
-            }
-            
-            console.log(`📍 Temperature ${temp}°C -> WHITE (Polar conditions)`);
-            return 'swix-temp-polar';                       // White: Below -18°C (Below 0°F) - Polar conditions
+            if (temp >= 0) return 'swix-temp-yellow';
+            if (temp >= -4) return 'swix-temp-red';
+            if (temp >= -8) return 'swix-temp-violet';
+            if (temp >= -12) return 'swix-temp-blue';
+            if (temp >= -18) return 'swix-temp-green';
+            return 'swix-temp-polar';
         }
 
-        function applySwixColorToElement(elementId, temperature) {
-            console.log(`🎨 Starting color application for ${elementId} with temperature ${temperature}°C`);
-            
+        function applySwixColor(elementId, temperature) {
             const element = document.getElementById(elementId);
-            if (!element) {
-                console.error(`❌ Element ${elementId} not found in DOM`);
-                return false;
-            }
+            if (!element || !temperature) return;
             
-            const temp = parseFloat(temperature);
-            if (isNaN(temp)) {
-                console.error(`❌ Invalid temperature value: ${temperature}`);
-                return false;
-            }
-            
-            // Remove any existing Swix color classes
             const swixClasses = ['swix-temp-yellow', 'swix-temp-red', 'swix-temp-violet', 'swix-temp-blue', 'swix-temp-green', 'swix-temp-polar'];
             swixClasses.forEach(cls => element.classList.remove(cls));
             
-            // Get and apply the appropriate Swix color class
-            const swixClass = getSwixColorClass(temp);
-            if (swixClass) {
-                element.classList.add(swixClass);
-                console.log(`✅ Successfully applied ${swixClass} to ${elementId}`);
-                console.log(`🔍 Element classes now: ${element.className}`);
-                return true;
-            } else {
-                console.error(`❌ No Swix class determined for temperature ${temp}°C`);
-                return false;
-            }
+            const swixClass = getSwixColorClass(temperature);
+            if (swixClass) element.classList.add(swixClass);
         }
 
-        // Manual test function to verify Swix colors are working
-        function testSwixColors() {
-            console.log('🧪 Testing Swix color system...');
-            
-            // Test with different temperatures
-            const testTemps = [5, 2, -2, -6, -10, -15, -20];
-            const testElements = ['outdoor-temp', 'top-temp', 'bottom-temp'];
-            
-            testElements.forEach((elementId, index) => {
-                const testTemp = testTemps[index % testTemps.length];
-                console.log(`🧪 Testing ${elementId} with ${testTemp}°C`);
-                const success = applySwixColorToElement(elementId, testTemp);
-                console.log(`🧪 Test result for ${elementId}: ${success ? 'SUCCESS' : 'FAILED'}`);
-            });
-        }
-
-        // Comprehensive function to apply all Swix colors after data refresh
         function applyAllSwixColors() {
-            console.log('🎨 === COMPREHENSIVE SWIX COLOR APPLICATION ===');
-            
-            // Apply to outdoor sensor
-            const outdoorTempElement = document.getElementById('outdoor-temp');
-            if (outdoorTempElement && outdoorTempElement.textContent) {
-                const tempText = outdoorTempElement.textContent;
-                console.log(`🔍 Outdoor temp text: "${tempText}"`);
-                
-                const tempMatch = tempText.match(/-?\d+\.?\d*/);
+            // Apply to all forecast temps
+            document.querySelectorAll('.forecast-temp').forEach(element => {
+                const tempMatch = element.textContent.match(/-?\d+\.?\d*/);
                 if (tempMatch) {
                     const temp = parseFloat(tempMatch[0]);
-                    console.log(`🌡️ Parsed outdoor temp: ${temp}°C`);
-                    applySwixColorToElement('outdoor-temp', temp);
-                } else {
-                    console.log(`⚠️ Could not parse outdoor temperature from: ${tempText}`);
-                }
-            }
-            
-            // Apply to Hafjell top station
-            const topTempElement = document.getElementById('top-temp');
-            if (topTempElement && topTempElement.textContent) {
-                const tempText = topTempElement.textContent;
-                console.log(`🔍 Top temp text: "${tempText}"`);
-                
-                const tempMatch = tempText.match(/-?\d+\.?\d*/);
-                if (tempMatch) {
-                    const temp = parseFloat(tempMatch[0]);
-                    console.log(`🌡️ Parsed top temp: ${temp}°C`);
-                    applySwixColorToElement('top-temp', temp);
-                }
-            }
-            
-            // Apply to Hafjell bottom station  
-            const bottomTempElement = document.getElementById('bottom-temp');
-            if (bottomTempElement && bottomTempElement.textContent) {
-                const tempText = bottomTempElement.textContent;
-                console.log(`🔍 Bottom temp text: "${tempText}"`);
-                
-                const tempMatch = tempText.match(/-?\d+\.?\d*/);
-                if (tempMatch) {
-                    const temp = parseFloat(tempMatch[0]);
-                    console.log(`🌡️ Parsed bottom temp: ${temp}°C`);
-                    applySwixColorToElement('bottom-temp', temp);
-                }
-            }
-            
-            // Apply to all forecast temperatures
-            const allForecastTemps = document.querySelectorAll('.forecast-temp');
-            console.log(`🔍 Found ${allForecastTemps.length} forecast temperature elements`);
-            
-            allForecastTemps.forEach((element, index) => {
-                if (element.textContent) {
-                    const tempText = element.textContent;
-                    const tempMatch = tempText.match(/-?\d+\.?\d*/);
-                    if (tempMatch) {
-                        const temp = parseFloat(tempMatch[0]);
-                        console.log(`🌡️ Forecast ${index}: ${temp}°C`);
-                        
-                        // Remove existing classes
-                        const swixClasses = ['swix-temp-yellow', 'swix-temp-red', 'swix-temp-violet', 'swix-temp-blue', 'swix-temp-green', 'swix-temp-polar'];
-                        swixClasses.forEach(cls => element.classList.remove(cls));
-                        
-                        // Apply new class
-                        const swixClass = getSwixColorClass(temp);
-                        if (swixClass) {
-                            element.classList.add(swixClass);
-                            console.log(`✅ Applied ${swixClass} to forecast element ${index}`);
-                        }
-                    }
-                }
-            });
-            
-            console.log('🎨 === COMPREHENSIVE COLOR APPLICATION COMPLETE ===');
-        }
-
-        function applySwixColorToElements(className, temperatures) {
-            console.log(`🎨 Attempting to apply Swix colors to elements with class ${className}`, temperatures);
-            
-            const elements = document.querySelectorAll(`.${className}`);
-            console.log(`Found ${elements.length} elements with class ${className}`);
-            
-            elements.forEach((element, index) => {
-                const temp = temperatures[index];
-                if (temp !== null && temp !== undefined && !isNaN(parseFloat(temp))) {
-                    // Remove any existing Swix color classes
-                    element.classList.remove('swix-temp-yellow', 'swix-temp-red', 'swix-temp-violet', 'swix-temp-blue', 'swix-temp-green', 'swix-temp-polar');
-                    
-                    // Add the appropriate Swix color class
+                    const swixClasses = ['swix-temp-yellow', 'swix-temp-red', 'swix-temp-violet', 'swix-temp-blue', 'swix-temp-green', 'swix-temp-polar'];
+                    swixClasses.forEach(cls => element.classList.remove(cls));
                     const swixClass = getSwixColorClass(temp);
-                    if (swixClass) {
-                        element.classList.add(swixClass);
-                        console.log(`✅ Applied Swix color ${swixClass} to forecast element ${index} for temperature ${temp}°C`);
-                    }
-                } else {
-                    console.log(`⚠️ Invalid temperature for forecast element ${index}: ${temp}`);
+                    if (swixClass) element.classList.add(swixClass);
                 }
             });
         }
@@ -1329,7 +956,6 @@
 
         document.getElementById('loginForm').addEventListener('submit', function(e) {
             e.preventDefault();
-            
             const username = document.getElementById('username').value;
             const password = document.getElementById('password').value;
             const errorDiv = document.getElementById('error');
@@ -1349,11 +975,7 @@
             document.getElementById('loginContainer').style.display = 'none';
             document.getElementById('dashboardContainer').style.display = 'block';
             document.body.className = 'dashboard-mode';
-            
-            // Initialize dashboard
-            setTimeout(() => {
-                initDashboard();
-            }, 100);
+            setTimeout(() => initDashboard(), 100);
         }
 
         function logout() {
@@ -1361,7 +983,6 @@
             document.getElementById('loginContainer').style.display = 'flex';
             document.getElementById('dashboardContainer').style.display = 'none';
             document.body.className = 'login-mode';
-            
             document.getElementById('username').value = '';
             document.getElementById('password').value = '';
         }
@@ -1370,11 +991,10 @@
             sessionStorage.removeItem('wkWeatherDashboardAuth');
         });
 
-        // ========== WEATHER DASHBOARD LOGIC ==========
+        // ========== CHART FUNCTIONS ==========
 
         function initTempChart() {
             const ctx = document.getElementById('tempChart').getContext('2d');
-            
             tempChart = new Chart(ctx, {
                 type: 'line',
                 data: {
@@ -1424,9 +1044,7 @@
                         x: {
                             ticks: {
                                 color: 'rgba(255, 255, 255, 0.8)',
-                                font: { size: 10 },
-                                maxTicksLimit: 13,
-                                autoSkip: true
+                                font: { size: 10 }
                             },
                             grid: { color: 'rgba(255, 255, 255, 0.2)' }
                         },
@@ -1449,21 +1067,21 @@
             });
         }
 
-        function updateTempChart(outdoorTemp, hafjellTopTemp, hafjellBottomTemp) {
-            const now = new Date();
-            const timeLabel = now.toLocaleTimeString('en-NO', {hour: '2-digit', minute: '2-digit'});
+        function updateTempChartFromHistory(historyArray) {
+            if (!tempChart || !historyArray || historyArray.length === 0) return;
             
-            temperatureHistory.labels.push(timeLabel);
-            temperatureHistory.outdoor.push(outdoorTemp ? parseFloat(outdoorTemp) : null);
-            temperatureHistory.hafjellTop.push(hafjellTopTemp ? parseFloat(hafjellTopTemp) : null);
-            temperatureHistory.hafjellBottom.push(hafjellBottomTemp ? parseFloat(hafjellBottomTemp) : null);
+            temperatureHistory.labels = [];
+            temperatureHistory.outdoor = [];
+            temperatureHistory.hafjellTop = [];
+            temperatureHistory.hafjellBottom = [];
             
-            if (temperatureHistory.labels.length > 144) {
-                temperatureHistory.labels.shift();
-                temperatureHistory.outdoor.shift();
-                temperatureHistory.hafjellTop.shift();
-                temperatureHistory.hafjellBottom.shift();
-            }
+            historyArray.forEach(entry => {
+                const date = new Date(entry.ts);
+                temperatureHistory.labels.push(date.toLocaleTimeString('en-NO', {hour: '2-digit', minute: '2-digit'}));
+                temperatureHistory.outdoor.push(entry.h);
+                temperatureHistory.hafjellTop.push(entry.t);
+                temperatureHistory.hafjellBottom.push(entry.b);
+            });
             
             tempChart.data.labels = temperatureHistory.labels;
             tempChart.data.datasets[0].data = temperatureHistory.outdoor;
@@ -1480,717 +1098,10 @@
                 <small style="opacity: 0.7;">Auto-refresh: ${nextRefresh.toLocaleTimeString('en-NO', {hour: '2-digit', minute: '2-digit'})}</small>`;
         }
 
-        // ========== IMPROVED HOMEY OUTDOOR SENSORS ==========
-
-        async function updatePersonalSensors() {
-    console.log('🏠 Updating Homey outdoor sensors via API...');
-    
-    // Clear previous content
-    document.getElementById('outdoor-temp').textContent = '--°C';
-    document.getElementById('outdoor-humidity').textContent = '--%';
-    document.getElementById('sensor-status').className = 'status-indicator status-offline';
-    
-    try {
-        console.log('📡 Fetching data from /api/homey endpoint...');
-        
-        // Call the Vercel serverless function
-        const response = await fetch('/api/homey');
-        
-        if (!response.ok) {
-            const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
-            throw new Error(errorData.message || errorData.error || `API returned ${response.status}`);
-        }
-        
-        const data = await response.json();
-        console.log('✅ Received data from Homey API:', data);
-        
-        // Extract and display temperature
-        let tempValue = null;
-        if (data.temperature !== undefined && data.temperature !== null) {
-            tempValue = parseFloat(data.temperature).toFixed(1);
-            document.getElementById('outdoor-temp').textContent = tempValue + '°C';
-            console.log('✅ Temperature updated:', tempValue + '°C');
-            
-            // 🎨 Apply Swix color coding AFTER data retrieval
-            setTimeout(() => {
-                console.log('🎨 Applying Swix color to outdoor sensor...');
-                applySwixColorToElement('outdoor-temp', tempValue);
-            }, 50);
-            
-            setTimeout(() => {
-                applySwixColorToElement('outdoor-temp', tempValue);
-            }, 500);
-        } else {
-            document.getElementById('outdoor-temp').textContent = 'No data';
-            console.log('⚠️ No temperature data available');
-        }
-        
-        // Extract and display humidity
-        if (data.humidity !== undefined && data.humidity !== null) {
-            const humidityValue = Math.round(data.humidity);
-            document.getElementById('outdoor-humidity').textContent = humidityValue + '%';
-            console.log('✅ Humidity updated:', humidityValue + '%');
-        } else {
-            document.getElementById('outdoor-humidity').textContent = 'No data';
-            console.log('⚠️ No humidity data available');
-        }
-        
-        // Update status to online if we got at least some data
-        if (tempValue !== null || data.humidity !== null) {
-            document.getElementById('sensor-status').className = 'status-indicator status-online';
-            console.log('✅ Homey sensors updated successfully');
-        } else {
-            throw new Error('No sensor data received from Homey');
-        }
-        
-        return tempValue;
-        
-    } catch (error) {
-        console.error('❌ Error updating Homey sensors:', error.message);
-        document.getElementById('sensor-status').className = 'status-indicator status-offline';
-        
-        // Show error in sensor display
-        document.getElementById('outdoor-temp').textContent = 'Error';
-        document.getElementById('outdoor-humidity').textContent = 'Error';
-        
-        // Add error message to sensor card
-        const sensorGrid = document.querySelector('#sensors-card .sensor-grid');
-        let errorDiv = sensorGrid.querySelector('.error-message');
-        if (!errorDiv) {
-            errorDiv = document.createElement('div');
-            errorDiv.className = 'error-message';
-            errorDiv.style.gridColumn = '1 / -1';
-            sensorGrid.appendChild(errorDiv);
-        }
-        errorDiv.textContent = `Homey API Error: ${error.message}`;
-        
-        return null;
-    }
-}
-
-        // ========== HAFJELL WEATHER STATIONS (FROM HAFJELL WEBSITE) ==========
-
-        async function updateHafjellWeather() {
-            console.log('Updating Hafjell weather stations with REAL data from Hafjell website...');
-            
-            try {
-                // Fetch real weather data directly from Hafjell website
-                const hafjellData = await getHafjellWeatherData();
-                
-                console.log('REAL Hafjell weather data from website:', hafjellData);
-
-                // Update UI with real data from Hafjell website
-                document.getElementById('top-temp').textContent = `${hafjellData.top.temperature}°C`;
-                document.getElementById('top-desc').textContent = hafjellData.top.condition;
-                document.getElementById('top-wind').textContent = `${hafjellData.top.wind} m/s`;
-                document.getElementById('top-snow').textContent = `${hafjellData.top.snow} cm`;
-                document.getElementById('top-snow-day').textContent = `${hafjellData.top.snowLastDay} cm`;
-                document.getElementById('top-icon').textContent = getWeatherIconFromCondition(hafjellData.top.condition);
-                
-                document.getElementById('bottom-temp').textContent = `${hafjellData.bottom.temperature}°C`;
-                document.getElementById('bottom-desc').textContent = hafjellData.bottom.condition;
-                document.getElementById('bottom-wind').textContent = `${hafjellData.bottom.wind} m/s`;
-                document.getElementById('bottom-snow').textContent = `${hafjellData.bottom.snow} cm`;
-                document.getElementById('bottom-snow-day').textContent = `${hafjellData.bottom.snowLastDay} cm`;
-                document.getElementById('bottom-icon').textContent = getWeatherIconFromCondition(hafjellData.bottom.condition);
-                
-                document.getElementById('hafjell-status').className = 'status-indicator status-online';
-                console.log('Hafjell weather updated successfully with REAL website data');
-                
-                // 🎨 Apply Swix color coding AFTER data retrieval - multiple attempts with different delays
-                setTimeout(() => {
-                    if (hafjellData.top.temperature !== '--') {
-                        console.log('🎨 Applying Swix colors to Hafjell temperatures...');
-                        applySwixColorToElement('top-temp', hafjellData.top.temperature);
-                    }
-                    if (hafjellData.bottom.temperature !== '--') {
-                        applySwixColorToElement('bottom-temp', hafjellData.bottom.temperature);
-                    }
-                }, 50);
-                
-                setTimeout(() => {
-                    if (hafjellData.top.temperature !== '--') {
-                        applySwixColorToElement('top-temp', hafjellData.top.temperature);
-                    }
-                    if (hafjellData.bottom.temperature !== '--') {
-                        applySwixColorToElement('bottom-temp', hafjellData.bottom.temperature);
-                    }
-                }, 300);
-                
-                setTimeout(() => {
-                    if (hafjellData.top.temperature !== '--') {
-                        applySwixColorToElement('top-temp', hafjellData.top.temperature);
-                    }
-                    if (hafjellData.bottom.temperature !== '--') {
-                        applySwixColorToElement('bottom-temp', hafjellData.bottom.temperature);
-                        console.log('🎨 Swix colors applied to Hafjell temperatures');
-                    }
-                }, 800);
-                
-                return {
-                    top: hafjellData.top.temperature !== '--' ? parseFloat(hafjellData.top.temperature) : null,
-                    bottom: hafjellData.bottom.temperature !== '--' ? parseFloat(hafjellData.bottom.temperature) : null
-                };
-            } catch (error) {
-                console.error('Error updating Hafjell weather from website:', error);
-                document.getElementById('hafjell-status').className = 'status-indicator status-offline';
-                
-                // Show error in UI
-                document.getElementById('top-temp').textContent = 'Error';
-                document.getElementById('bottom-temp').textContent = 'Error';
-                document.getElementById('top-desc').textContent = 'Website unavailable';
-                document.getElementById('bottom-desc').textContent = 'Website unavailable';
-                
-                return null;
-            }
-        }
-
-        async function getHafjellWeatherData() {
-            try {
-                console.log('Fetching REAL weather data from Hafjell website...');
-                
-                // Use CORS proxy to get Hafjell page content (same as lift status)
-                const proxyUrl = 'https://api.allorigins.win/get?url=';
-                const targetUrl = encodeURIComponent('https://www.hafjell.no/en/snorapport-hafjell');
-                
-                const response = await fetch(proxyUrl + targetUrl);
-                
-                if (response.ok) {
-                    const data = await response.json();
-                    const htmlContent = data.contents;
-                    
-                    console.log('Successfully fetched Hafjell page content for weather data');
-                    
-                    // Parse HTML to extract real weather data
-                    const weatherData = parseWeatherDataFromHTML(htmlContent);
-                    console.log('Parsed REAL weather data:', weatherData);
-                    
-                    return weatherData;
-                } else {
-                    throw new Error(`Failed to fetch Hafjell page: ${response.status}`);
-                }
-            } catch (error) {
-                console.log('Cannot fetch real weather data from Hafjell website:', error.message);
-                throw error;
-            }
-        }
-
-   
-        function parseWeatherDataFromHTML(htmlContent) {
-            console.log('Parsing weather data from Hafjell HTML...');
-            
-            try {
-                const parser = new DOMParser();
-                const doc = parser.parseFromString(htmlContent, 'text/html');
-                const allText = doc.body.textContent.replace(/\s+/g, ' ').trim();
-                
-                // Initialize with '--'
-                const weatherData = {
-                    top: {
-                        temperature: '--',
-                        condition: 'Unknown',
-                        wind: '--',
-                        snow: '--',
-                        snowLastDay: '--'
-                    },
-                    bottom: {
-                        temperature: '--',
-                        condition: 'Unknown',
-                        wind: '--',
-                        snow: '--',
-                        snowLastDay: '--'
-                    }
-                };
-
-                // Parse temperature and wind from text pattern
-                const tempWindPattern = /(-?\d{1,2})\s+(-?\d{1,2})\s+(\d+\.?\d*)m\/s\s+(\d+\.?\d*)m\/s/;
-                const match = allText.match(tempWindPattern);
-                
-                if (match) {
-                    weatherData.top.temperature = match[1];
-                    weatherData.bottom.temperature = match[2];
-                    weatherData.top.wind = match[3];
-                    weatherData.bottom.wind = match[4];
-                    console.log(`✅ Temp/Wind: Top ${match[1]}°C ${match[3]}m/s, Bottom ${match[2]}°C ${match[4]}m/s`);
-                } else {
-                    console.log('⚠️ Could not parse temperature/wind');
-                }
-                
-                // Parse weather condition
-                if (allText.includes('Mostly sunny')) {
-                    weatherData.top.condition = 'Mostly sunny';
-                    weatherData.bottom.condition = 'Mostly sunny';
-                } else if (allText.includes('Partly cloudy')) {
-                    weatherData.top.condition = 'Partly cloudy';
-                    weatherData.bottom.condition = 'Partly cloudy';
-                } else if (allText.includes('Cloudy')) {
-                    weatherData.top.condition = 'Cloudy';
-                    weatherData.bottom.condition = 'Cloudy';
-                } else if (allText.includes('Clear')) {
-                    weatherData.top.condition = 'Clear';
-                    weatherData.bottom.condition = 'Clear';
-                }
-                
-                // ========== PARSE SNOW DATA FROM DOM STRUCTURE ==========
-                
-                // Method 1: Parse "Slopes" for snow depth
-                const pisteSectionSlopes = doc.querySelector('.w--conditions-piste');
-                if (pisteSectionSlopes) {
-                    const topSpan = pisteSectionSlopes.querySelector('.w--top');
-                    const bottomSpan = pisteSectionSlopes.querySelector('.w--bottom');
-                    
-                    if (topSpan && topSpan.textContent) {
-                        const topValue = topSpan.textContent.replace(/[^\d]/g, '');
-                        if (topValue) {
-                            weatherData.top.snow = topValue;
-                            console.log(`✅ Snow depth (Slopes) Top: ${topValue} cm`);
-                        }
-                    }
-                    
-                    if (bottomSpan && bottomSpan.textContent) {
-                        const bottomValue = bottomSpan.textContent.replace(/[^\d]/g, '');
-                        if (bottomValue) {
-                            weatherData.bottom.snow = bottomValue;
-                            console.log(`✅ Snow depth (Slopes) Bottom: ${bottomValue} cm`);
-                        }
-                    }
-                } else {
-                    console.log('⚠️ Could not find .w--conditions-piste section');
-                }
-                
-                // Method 2: Parse "Last day" for fresh snow
-                const lastDaySection = doc.querySelector('.w--conditions-lastday');
-                if (lastDaySection) {
-                    const topSpan = lastDaySection.querySelector('.w--top');
-                    const bottomSpan = lastDaySection.querySelector('.w--bottom');
-                    
-                    if (topSpan && topSpan.textContent) {
-                        const topValue = topSpan.textContent.replace(/[^\d]/g, '');
-                        if (topValue) {
-                            weatherData.top.snowLastDay = topValue;
-                            console.log(`✅ Fresh snow (Last day) Top: ${topValue} cm`);
-                        }
-                    }
-                    
-                    if (bottomSpan && bottomSpan.textContent) {
-                        const bottomValue = bottomSpan.textContent.replace(/[^\d]/g, '');
-                        if (bottomValue) {
-                            weatherData.bottom.snowLastDay = bottomValue;
-                            console.log(`✅ Fresh snow (Last day) Bottom: ${bottomValue} cm`);
-                        }
-                    }
-                } else {
-                    console.log('⚠️ Could not find .w--conditions-lastday section');
-                }
-                
-                // Fallback: Try "Terrain" if Slopes not available
-                if (weatherData.top.snow === '--' || weatherData.bottom.snow === '--') {
-                    const terrainSection = doc.querySelector('.w--conditions-terrain');
-                    if (terrainSection) {
-                        const topSpan = terrainSection.querySelector('.w--top');
-                        const bottomSpan = terrainSection.querySelector('.w--bottom');
-                        
-                        if (topSpan && topSpan.textContent && weatherData.top.snow === '--') {
-                            const topValue = topSpan.textContent.replace(/[^\d]/g, '');
-                            if (topValue) {
-                                weatherData.top.snow = topValue;
-                                console.log(`✅ Snow depth (Terrain fallback) Top: ${topValue} cm`);
-                            }
-                        }
-                        
-                        if (bottomSpan && bottomSpan.textContent && weatherData.bottom.snow === '--') {
-                            const bottomValue = bottomSpan.textContent.replace(/[^\d]/g, '');
-                            if (bottomValue) {
-                                weatherData.bottom.snow = bottomValue;
-                                console.log(`✅ Snow depth (Terrain fallback) Bottom: ${bottomValue} cm`);
-                            }
-                        }
-                    }
-                }
-                
-                console.log('📊 Final parsed data:', weatherData);
-                return weatherData;
-                
-            } catch (error) {
-                console.error('❌ Parse error:', error);
-                return {
-                    top: { temperature: '--', condition: 'Error', wind: '--', snow: '--', snowLastDay: '--' },
-                    bottom: { temperature: '--', condition: 'Error', wind: '--', snow: '--', snowLastDay: '--' }
-                };
-            }
-        }
-
-
-        // ========== HAFJELL LIFT STATUS (REAL-TIME) ==========
-
-        async function updateLiftStatus() {
-            console.log('Updating Hafjell lift status with REAL data...');
-            try {
-                // Try to get real lift status from Hafjell website
-                const liftData = await getHafjellLiftStatus();
-                
-                console.log('REAL lift status data:', liftData);
-                
-                // Update each lift
-                Object.keys(liftData).forEach(liftKey => {
-                    const liftElement = document.getElementById(`lift-${liftKey}`);
-                    if (liftElement) {
-                        const status = liftData[liftKey];
-                        liftElement.textContent = status.toUpperCase();
-                        liftElement.className = `lift-status ${status.toLowerCase()}`;
-                    }
-                });
-                
-                document.getElementById('lifts-status').className = 'status-indicator status-online';
-                console.log('Lift status updated successfully with REAL data');
-                
-                return liftData;
-            } catch (error) {
-                console.error('Error updating lift status:', error);
-                document.getElementById('lifts-status').className = 'status-indicator status-offline';
-                
-                // Fallback to time-based realistic simulation
-                const currentHour = new Date().getHours();
-                const isOperatingHours = currentHour >= 9 && currentHour <= 16;
-                const isWeekend = [0, 6].includes(new Date().getDay());
-                
-                const fallbackData = {
-                    'backyardheisen': isOperatingHours ? 'open' : 'closed',
-                    'hafjell360': isOperatingHours && isWeekend ? 'open' : 'closed', 
-                    'gondolen': isOperatingHours ? 'open' : 'closed',
-                    'vidsynexpressen': isOperatingHours ? 'open' : 'closed',
-                    'hafjellheis1': isOperatingHours ? 'open' : 'closed',
-                    'hafjellheis2': isOperatingHours && isWeekend ? 'open' : 'closed',
-                    'kjusheisen': isOperatingHours && isWeekend ? 'open' : 'closed'
-                };
-                
-                console.log('Using fallback lift data due to API error:', fallbackData);
-                
-                // Update with fallback data
-                Object.keys(fallbackData).forEach(liftKey => {
-                    const liftElement = document.getElementById(`lift-${liftKey}`);
-                    if (liftElement) {
-                        const status = fallbackData[liftKey];
-                        liftElement.textContent = status.toUpperCase();
-                        liftElement.className = `lift-status ${status.toLowerCase()}`;
-                    }
-                });
-                
-                return fallbackData;
-            }
-        }
-
-        async function getHafjellLiftStatus() {
-            try {
-                console.log('Attempting to fetch REAL lift status from Hafjell website...');
-                
-                // Try to use CORS proxy to get Hafjell page content
-                const proxyUrl = 'https://api.allorigins.win/get?url=';
-                const targetUrl = encodeURIComponent('https://www.hafjell.no/en/snorapport-hafjell');
-                
-                const response = await fetch(proxyUrl + targetUrl);
-                
-                if (response.ok) {
-                    const data = await response.json();
-                    const htmlContent = data.contents;
-                    
-                    console.log('Successfully fetched Hafjell page content');
-                    
-                    // Parse HTML to extract real lift status
-                    const liftStatus = parseLiftStatusFromHTML(htmlContent);
-                    console.log('Parsed REAL lift statuses:', liftStatus);
-                    
-                    return liftStatus;
-                } else {
-                    throw new Error(`Failed to fetch Hafjell page: ${response.status}`);
-                }
-            } catch (error) {
-                console.log('Cannot fetch real lift data:', error.message);
-                throw error;
-            }
-        }
-
-        function parseLiftStatusFromHTML(htmlContent) {
-            console.log('Parsing lift status from Hafjell HTML...');
-            
-            try {
-                // Create a temporary DOM parser
-                const parser = new DOMParser();
-                const doc = parser.parseFromString(htmlContent, 'text/html');
-                
-                // Lift name mappings from Hafjell website to our dashboard IDs
-                const liftMappings = {
-                    'backyardheisen': ['backyard', 'backyardheisen'],
-                    'hafjell360': ['hafjell 360', '360'],
-                    'gondolen': ['gondolen', 'gondola'],
-                    'vidsynexpressen': ['vidsynexpressen', 'vidsyn'],
-                    'hafjellheis1': ['hafjellheis 1', 'hafjell heis 1', 'c. hafjellheis 1'],
-                    'hafjellheis2': ['hafjellheis 2', 'hafjell heis 2', 'c. hafjellheis 2'],
-                    'kjusheisen': ['kjusheisen', 'kjus']
-                };
-                
-                const liftStatus = {};
-                
-                // Find all h4 elements that contain lift names
-                const h4Elements = doc.querySelectorAll('h4.h4');
-                
-                h4Elements.forEach(h4 => {
-                    const liftName = h4.textContent.trim().toLowerCase();
-                    console.log('Found lift in HTML:', liftName);
-                    
-                    // Find the corresponding span with status
-                    const parentDiv = h4.closest('div');
-                    if (parentDiv) {
-                        const statusSpan = parentDiv.querySelector('span');
-                        if (statusSpan) {
-                            const statusText = statusSpan.textContent.trim().toLowerCase();
-                            console.log(`Lift "${liftName}" status: "${statusText}"`);
-                            
-                            // Map the lift name to our dashboard ID
-                            for (const [dashboardId, possibleNames] of Object.entries(liftMappings)) {
-                                if (possibleNames.some(name => liftName.includes(name))) {
-                                    // Normalize status text
-                                    let normalizedStatus = 'unknown';
-                                    if (statusText.includes('åpne') || statusText.includes('open')) {
-                                        normalizedStatus = 'open';
-                                    } else if (statusText.includes('closed') || statusText.includes('stengt')) {
-                                        normalizedStatus = 'closed';
-                                    }
-                                    
-                                    liftStatus[dashboardId] = normalizedStatus;
-                                    console.log(`Mapped "${liftName}" to "${dashboardId}": ${normalizedStatus}`);
-                                    break;
-                                }
-                            }
-                        }
-                    }
-                });
-                
-                // If we didn't find enough lifts, add fallback for missing ones
-                Object.keys(liftMappings).forEach(liftId => {
-                    if (!liftStatus[liftId]) {
-                        // Time-based fallback for missing lifts
-                        const currentHour = new Date().getHours();
-                        const isOperatingHours = currentHour >= 9 && currentHour <= 16;
-                        const isWeekend = [0, 6].includes(new Date().getDay());
-                        
-                        if (liftId === 'hafjell360' || liftId === 'hafjellheis2' || liftId === 'kjusheisen') {
-                            liftStatus[liftId] = isOperatingHours && isWeekend ? 'open' : 'closed';
-                        } else {
-                            liftStatus[liftId] = isOperatingHours ? 'open' : 'closed';
-                        }
-                        console.log(`Added fallback for ${liftId}: ${liftStatus[liftId]}`);
-                    }
-                });
-                
-                console.log('Final parsed lift status:', liftStatus);
-                return liftStatus;
-                
-            } catch (parseError) {
-                console.error('Error parsing HTML content:', parseError);
-                
-                // Return fallback data based on operating hours
-                const currentHour = new Date().getHours();
-                const isOperatingHours = currentHour >= 9 && currentHour <= 16;
-                const isWeekend = [0, 6].includes(new Date().getDay());
-                
-                return {
-                    'backyardheisen': isOperatingHours ? 'open' : 'closed',
-                    'hafjell360': isOperatingHours && isWeekend ? 'open' : 'closed', 
-                    'gondolen': isOperatingHours ? 'open' : 'closed',
-                    'vidsynexpressen': isOperatingHours ? 'open' : 'closed',
-                    'hafjellheis1': isOperatingHours ? 'open' : 'closed',
-                    'hafjellheis2': isOperatingHours && isWeekend ? 'open' : 'closed',
-                    'kjusheisen': isOperatingHours && isWeekend ? 'open' : 'closed'
-                };
-            }
-        }
-
-        // ========== YR.NO FORECAST ==========
-
-        async function updateForecast() {
-            console.log('Updating YR.no forecast with REAL data...');
-            try {
-                // Use Vercel serverless proxy for iOS Safari compatibility
-                // Direct fetch to Met.no doesn't work on iOS due to User-Agent header restrictions
-                const response = await fetch(
-                    `/api/forecast?lat=${CONFIG.location.lat}&lon=${CONFIG.location.lon}`
-                );
-                
-                if (!response.ok) {
-                    throw new Error(`Forecast API error: ${response.status} ${response.statusText}`);
-                }
-                
-                const result = await response.json();
-                
-                if (!result.success || !result.data) {
-                    throw new Error('Invalid forecast data received');
-                }
-                
-                console.log('YR.no REAL forecast data received successfully via proxy');
-                
-                // Use the actual forecast data from the proxy response
-                displayForecast(result.data);
-                displayTomorrowForecast(result.data);
-                
-                document.getElementById('forecast-status').className = 'status-indicator status-online';
-                document.getElementById('tomorrow-status').className = 'status-indicator status-online';
-            } catch (error) {
-                console.error('Error updating YR.no forecast:', error);
-                document.getElementById('forecast-status').className = 'status-indicator status-offline';
-                document.getElementById('tomorrow-status').className = 'status-indicator status-offline';
-                
-                document.getElementById('forecast-content').innerHTML = 
-                    '<div style="color: rgba(255,255,255,0.7); text-align: center; padding: 10px;">YR.no forecast unavailable</div>';
-                document.getElementById('tomorrow-content').innerHTML = 
-                    '<div style="color: rgba(255,255,255,0.7); text-align: center; padding: 10px;">YR.no forecast unavailable</div>';
-            }
-        }
-
-        function displayForecast(data) {
-            const forecastContent = document.getElementById('forecast-content');
-            forecastContent.innerHTML = '';
-            
-            const today = new Date().toDateString();
-            const now = new Date();
-            
-            const todayForecasts = data.properties.timeseries.filter(item => {
-                const itemDate = new Date(item.time);
-                return itemDate.toDateString() === today && itemDate > now;
-            }).slice(0, 6);
-            
-            if (todayForecasts.length === 0) {
-                forecastContent.innerHTML = '<div style="color: rgba(255,255,255,0.7); text-align: center;">No forecasts available for today</div>';
-                return;
-            }
-            
-            // Collect temperatures for Swix color coding
-            const forecastTemps = [];
-            
-            todayForecasts.forEach(item => {
-                const time = new Date(item.time);
-                const temp = Math.round(item.data.instant.details.air_temperature);
-                const symbol = item.data.next_1_hours?.summary?.symbol_code || 'clearsky_day';
-                
-                const windSpeed = item.data.instant.details.wind_speed || 0;
-                const windDirection = item.data.instant.details.wind_from_direction;
-                const windArrow = getWindArrow(windDirection);
-                
-                const forecastItem = document.createElement('div');
-                forecastItem.className = 'forecast-item';
-                forecastItem.innerHTML = `
-                    <div class="forecast-time">${time.toLocaleTimeString('en-NO', {hour: '2-digit', minute: '2-digit'})}</div>
-                    <div class="forecast-icon">${getWeatherIcon(symbol)}</div>
-                    <div class="forecast-temp">${temp}°C</div>
-                    <div class="forecast-wind">
-                        <span class="wind-arrow">${windArrow}</span>
-                        <span class="wind-speed">${Math.round(windSpeed)} m/s</span>
-                    </div>
-                    <div class="forecast-desc">${getWeatherDescription(symbol)}</div>
-                `;
-                forecastContent.appendChild(forecastItem);
-                
-                // Store temperature for Swix color coding
-                forecastTemps.push(temp);
-            });
-            
-            // 🎨 Apply Swix color coding to forecast temperatures AFTER display - with delay
-            setTimeout(() => {
-                console.log('🎨 Applying Swix colors to today\'s forecast temperatures:', forecastTemps);
-                applySwixColorToElements('forecast-temp', forecastTemps);
-            }, 300);
-        }
-
-        function displayTomorrowForecast(data) {
-            const tomorrowContent = document.getElementById('tomorrow-content');
-            tomorrowContent.innerHTML = '';
-            
-            const tomorrow = new Date();
-            tomorrow.setDate(tomorrow.getDate() + 1);
-            const tomorrowDateString = tomorrow.toDateString();
-            
-            const tomorrowForecasts = data.properties.timeseries.filter(item => {
-                const itemDate = new Date(item.time);
-                const itemHour = itemDate.getHours();
-                return itemDate.toDateString() === tomorrowDateString && 
-                       itemHour >= 6 && itemHour <= 18;
-            }).filter((item, index) => index % 2 === 0).slice(0, 7);
-            
-            if (tomorrowForecasts.length === 0) {
-                tomorrowContent.innerHTML = '<div style="color: rgba(255,255,255,0.7); text-align: center;">No forecasts available for tomorrow</div>';
-                return;
-            }
-            
-            // Collect temperatures for Swix color coding
-            const tomorrowTemps = [];
-            
-            tomorrowForecasts.forEach(item => {
-                const time = new Date(item.time);
-                const temp = Math.round(item.data.instant.details.air_temperature);
-                const symbol = item.data.next_1_hours?.summary?.symbol_code || 'clearsky_day';
-                
-                const windSpeed = item.data.instant.details.wind_speed || 0;
-                const windDirection = item.data.instant.details.wind_from_direction;
-                const windArrow = getWindArrow(windDirection);
-                
-                const forecastItem = document.createElement('div');
-                forecastItem.className = 'forecast-item';
-                forecastItem.innerHTML = `
-                    <div class="forecast-time">${time.toLocaleTimeString('en-NO', {hour: '2-digit', minute: '2-digit'})}</div>
-                    <div class="forecast-icon">${getWeatherIcon(symbol)}</div>
-                    <div class="forecast-temp">${temp}°C</div>
-                    <div class="forecast-wind">
-                        <span class="wind-arrow">${windArrow}</span>
-                        <span class="wind-speed">${Math.round(windSpeed)} m/s</span>
-                    </div>
-                    <div class="forecast-desc">${getWeatherDescription(symbol)}</div>
-                `;
-                tomorrowContent.appendChild(forecastItem);
-                
-                // Store temperature for Swix color coding
-                tomorrowTemps.push(temp);
-            });
-            
-            // 🎨 Apply Swix color coding to tomorrow forecast temperatures AFTER display - with delay
-            setTimeout(() => {
-                console.log('🎨 Applying Swix colors to tomorrow\'s forecast temperatures:', tomorrowTemps);
-                const tomorrowTempElements = document.querySelectorAll('#tomorrow-content .forecast-temp');
-                tomorrowTempElements.forEach((element, index) => {
-                    const temp = tomorrowTemps[index];
-                    if (temp !== null && temp !== undefined && !isNaN(parseFloat(temp))) {
-                        // Remove any existing Swix color classes
-                        element.classList.remove('swix-temp-yellow', 'swix-temp-red', 'swix-temp-violet', 'swix-temp-blue', 'swix-temp-green', 'swix-temp-polar');
-                        
-                        // Add the appropriate Swix color class
-                        const swixClass = getSwixColorClass(temp);
-                        if (swixClass) {
-                            element.classList.add(swixClass);
-                            console.log(`✅ Applied Swix color ${swixClass} to tomorrow forecast temp ${temp}°C`);
-                        }
-                    }
-                });
-            }, 400);
-        }
-
-        // ========== WEBCAM ==========
-
-        function refreshWebcam() {
-            const webcamImg = document.getElementById('hafjell-webcam');
-            if (webcamImg) {
-                const timestamp = new Date().getTime();
-                const baseUrl = 'https://aws-cdn.norwaylive.tv/snapshots/ffbb7144-562d-4753-919f-52ebd0b72cbe/kam4utsnitt1.jpg';
-                webcamImg.src = `${baseUrl}?t=${timestamp}`;
-                webcamImg.style.display = 'block';
-                webcamImg.nextElementSibling.style.display = 'none';
-                console.log('Live webcam refreshed');
-            }
-        }
-
         // ========== UTILITY FUNCTIONS ==========
 
         function getWindArrow(windDirection) {
             if (!windDirection && windDirection !== 0) return '○';
-            
             const directions = [
                 { min: 337.5, max: 360, arrow: '↓' },
                 { min: 0, max: 22.5, arrow: '↓' },
@@ -2202,7 +1113,6 @@
                 { min: 247.5, max: 292.5, arrow: '→' },
                 { min: 292.5, max: 337.5, arrow: '↘' }
             ];
-            
             for (const dir of directions) {
                 if (windDirection >= dir.min && windDirection < dir.max) {
                     return dir.arrow;
@@ -2230,11 +1140,8 @@
                 'snow': 'Snow',
                 'fog': 'Fog'
             };
-            
             for (const key in descriptions) {
-                if (symbolCode.includes(key)) {
-                    return descriptions[key];
-                }
+                if (symbolCode.includes(key)) return descriptions[key];
             }
             return 'Unknown';
         }
@@ -2249,275 +1156,209 @@
             if (conditionLower.includes('fog')) return '🌫️';
             return '🌤️';
         }
-        // ========== CACHE INTEGRATION FUNCTIONS ==========
 
-// Helper: Update forecast from cache
-function updateForecastFromCache(cachedForecast) {
-    if (!cachedForecast || !cachedForecast.fc) return;
-    
-    const forecastContent = document.getElementById('forecast-content');
-    const tomorrowContent = document.getElementById('tomorrow-content');
-    
-    forecastContent.innerHTML = '';
-    if (tomorrowContent) tomorrowContent.innerHTML = '';
-    
-    const now = new Date();
-    const today = now.toDateString();
-    
-    // Today's forecast
-    const todayForecasts = cachedForecast.fc.filter(item => {
-        const itemDate = new Date(item.t);
-        return itemDate.toDateString() === today && itemDate > now;
-    }).slice(0, 6);
-    
-    todayForecasts.forEach(item => {
-        const time = new Date(item.t);
-        const forecastItem = document.createElement('div');
-        forecastItem.className = 'forecast-item';
-        forecastItem.innerHTML = `
-            <div class="forecast-time">${time.toLocaleTimeString('en-NO', {hour: '2-digit', minute: '2-digit'})}</div>
-            <div class="forecast-icon">${getWeatherIcon(item.sym)}</div>
-            <div class="forecast-temp">${item.temp}°C</div>
-            <div class="forecast-wind">
-                <span class="wind-arrow">${getWindArrow(item.windDir)}</span>
-                <span class="wind-speed">${item.wind} m/s</span>
-            </div>
-            <div class="forecast-desc">${getWeatherDescription(item.sym)}</div>
-        `;
-        forecastContent.appendChild(forecastItem);
-    });
-    
-    document.getElementById('forecast-status').className = 'status-indicator status-online';
-    
-    // Tomorrow's forecast (if element exists)
-    if (tomorrowContent) {
-        const tomorrow = new Date(now.getTime() + 24 * 60 * 60 * 1000);
-        const tomorrowDateString = tomorrow.toDateString();
-        
-        const tomorrowForecasts = cachedForecast.fc.filter(item => {
-            const itemDate = new Date(item.t);
-            const itemHour = itemDate.getHours();
-            return itemDate.toDateString() === tomorrowDateString && itemHour >= 6 && itemHour <= 18;
-        }).slice(0, 5);
-        
-        tomorrowForecasts.forEach(item => {
-            const time = new Date(item.t);
-            const forecastItem = document.createElement('div');
-            forecastItem.className = 'forecast-item';
-            forecastItem.innerHTML = `
-                <div class="forecast-time">${time.toLocaleTimeString('en-NO', {hour: '2-digit', minute: '2-digit'})}</div>
-                <div class="forecast-icon">${getWeatherIcon(item.sym)}</div>
-                <div class="forecast-temp">${item.temp}°C</div>
-                <div class="forecast-wind">
-                    <span class="wind-arrow">${getWindArrow(item.windDir)}</span>
-                    <span class="wind-speed">${item.wind} m/s</span>
-                </div>
-                <div class="forecast-desc">${getWeatherDescription(item.sym)}</div>
-            `;
-            tomorrowContent.appendChild(forecastItem);
-        });
-        
-        document.getElementById('tomorrow-status').className = 'status-indicator status-online';
-    }
-    
-    setTimeout(() => applyAllSwixColors(), 200);
-}
-
-// Helper: Update temp chart from history
-function updateTempChartFromHistory(historyArray) {
-    if (!tempChart || !historyArray || historyArray.length === 0) {
-        console.log('⚠️ No temperature history available yet');
-        return;
-    }
-    
-    const labels = [];
-    const outdoor = [];
-    const hafjellTop = [];
-    const hafjellBottom = [];
-    
-    historyArray.forEach(entry => {
-        const date = new Date(entry.ts);
-        labels.push(date.toLocaleTimeString('en-NO', {hour: '2-digit', minute: '2-digit'}));
-        outdoor.push(entry.h);
-        hafjellTop.push(entry.t);
-        hafjellBottom.push(entry.b);
-    });
-    
-    tempChart.data.labels = labels;
-    tempChart.data.datasets[0].data = outdoor;
-    tempChart.data.datasets[1].data = hafjellTop;
-    tempChart.data.datasets[2].data = hafjellBottom;
-    tempChart.update('none');
-    
-    console.log(`✅ Temperature chart updated with ${historyArray.length} data points`);
-}
-
-// Main refresh function
-async function refreshAllData() {
-    const refreshBtn = document.querySelector('.refresh-btn');
-    if (refreshBtn) {
-        refreshBtn.disabled = true;
-        refreshBtn.textContent = '🔄 Refreshing...';
-    }
-    
-    document.querySelectorAll('.card').forEach(card => card.classList.add('loading'));
-    
-    try {
-        console.log('🚀 Loading from optimized cache...');
-        
-        // Correct URL with ?action=get
-        const response = await fetch('/api/cached-data.js?action=get');
-        
-        if (!response.ok) {
-            throw new Error(`Cache fetch failed: ${response.status}`);
+        function refreshWebcam() {
+            const webcamImg = document.getElementById('hafjell-webcam');
+            if (webcamImg) {
+                const timestamp = new Date().getTime();
+                webcamImg.src = `https://aws-cdn.norwaylive.tv/snapshots/ffbb7144-562d-4753-919f-52ebd0b72cbe/kam4utsnitt1.jpg?t=${timestamp}`;
+            }
         }
-        
-        const cacheData = await response.json();
-        console.log('✅ Cache loaded:', cacheData);
-        
-        if (cacheData.success && cacheData.data) {
-            // Update Homey sensors
-            if (cacheData.data.homey && cacheData.data.homey.temp !== null) {
-                document.getElementById('outdoor-temp').textContent = cacheData.data.homey.temp + '°C';
-                document.getElementById('outdoor-humidity').textContent = cacheData.data.homey.hum + '%';
-                document.getElementById('sensor-status').className = 'status-indicator status-online';
-                setTimeout(() => applySwixColorToElement('outdoor-temp', cacheData.data.homey.temp), 50);
+
+        // ========== MAIN REFRESH FUNCTION (CACHE INTEGRATED) ==========
+
+        async function refreshAllData() {
+            const refreshBtn = document.querySelector('.refresh-btn');
+            if (refreshBtn) {
+                refreshBtn.disabled = true;
+                refreshBtn.textContent = '🔄 Refreshing...';
             }
             
-            // Update Hafjell weather
-            if (cacheData.data.hafjell) {
-                const h = cacheData.data.hafjell;
-                
-                document.getElementById('top-temp').textContent = h.top.temp + '°C';
-                document.getElementById('top-desc').textContent = h.top.cond;
-                document.getElementById('top-wind').textContent = h.top.wind + ' m/s';
-                document.getElementById('top-snow').textContent = h.top.snow + ' cm';
-                document.getElementById('top-snow-day').textContent = h.top.snowDay + ' cm';
-                document.getElementById('top-icon').textContent = getWeatherIconFromCondition(h.top.cond);
-                
-                document.getElementById('bottom-temp').textContent = h.bottom.temp + '°C';
-                document.getElementById('bottom-desc').textContent = h.bottom.cond;
-                document.getElementById('bottom-wind').textContent = h.bottom.wind + ' m/s';
-                document.getElementById('bottom-snow').textContent = h.bottom.snow + ' cm';
-                document.getElementById('bottom-snow-day').textContent = h.bottom.snowDay + ' cm';
-                document.getElementById('bottom-icon').textContent = getWeatherIconFromCondition(h.bottom.cond);
-                
-                document.getElementById('hafjell-status').className = 'status-indicator status-online';
-                
-                setTimeout(() => {
-                    applySwixColorToElement('top-temp', h.top.temp);
-                    applySwixColorToElement('bottom-temp', h.bottom.temp);
-                }, 50);
-            }
+            document.querySelectorAll('.card').forEach(card => card.classList.add('loading'));
             
-            // Update lifts
-            if (cacheData.data.lifts && cacheData.data.lifts.lifts) {
-                Object.keys(cacheData.data.lifts.lifts).forEach(liftKey => {
-                    const liftElement = document.getElementById(`lift-${liftKey}`);
-                    if (liftElement) {
-                        const status = cacheData.data.lifts.lifts[liftKey] === 1 ? 'open' : 'closed';
-                        liftElement.textContent = status.toUpperCase();
-                        liftElement.className = `lift-status ${status}`;
+            try {
+                console.log('📦 Loading from optimized cache...');
+                
+                const response = await fetch('/api/cached-data.js?action=get');
+                
+                if (!response.ok) {
+                    throw new Error(`Cache fetch failed: ${response.status}`);
+                }
+                
+                const result = await response.json();
+                console.log('✅ Cache loaded:', result);
+                
+                if (result.success && result.data) {
+                    const data = result.data;
+                    
+                    // Update Homey sensors
+                    if (data.homey && data.homey.temp) {
+                        document.getElementById('outdoor-temp').textContent = data.homey.temp + '°C';
+                        document.getElementById('outdoor-humidity').textContent = data.homey.hum + '%';
+                        document.getElementById('sensor-status').className = 'status-indicator status-online';
+                        setTimeout(() => applySwixColor('outdoor-temp', data.homey.temp), 50);
                     }
-                });
-                document.getElementById('lifts-status').className = 'status-indicator status-online';
+                    
+                    // Update Hafjell stations
+                    if (data.hafjell) {
+                        const h = data.hafjell;
+                        document.getElementById('top-temp').textContent = (h.top.temp || '--') + '°C';
+                        document.getElementById('top-desc').textContent = h.top.cond || 'Unknown';
+                        document.getElementById('top-wind').textContent = (h.top.wind || '--') + ' m/s';
+                        document.getElementById('top-snow').textContent = (h.top.snow || '--') + ' cm';
+                        document.getElementById('top-snow-day').textContent = (h.top.snowDay || '--') + ' cm';
+                        document.getElementById('top-icon').textContent = getWeatherIconFromCondition(h.top.cond);
+                        
+                        document.getElementById('bottom-temp').textContent = (h.bottom.temp || '--') + '°C';
+                        document.getElementById('bottom-desc').textContent = h.bottom.cond || 'Unknown';
+                        document.getElementById('bottom-wind').textContent = (h.bottom.wind || '--') + ' m/s';
+                        document.getElementById('bottom-snow').textContent = (h.bottom.snow || '--') + ' cm';
+                        document.getElementById('bottom-snow-day').textContent = (h.bottom.snowDay || '--') + ' cm';
+                        document.getElementById('bottom-icon').textContent = getWeatherIconFromCondition(h.bottom.cond);
+                        
+                        document.getElementById('hafjell-status').className = 'status-indicator status-online';
+                        
+                        if (h.top.temp) setTimeout(() => applySwixColor('top-temp', h.top.temp), 50);
+                        if (h.bottom.temp) setTimeout(() => applySwixColor('bottom-temp', h.bottom.temp), 50);
+                    }
+                    
+                    // Update lifts
+                    if (data.lifts && data.lifts.lifts) {
+                        Object.keys(data.lifts.lifts).forEach(liftKey => {
+                            const liftElement = document.getElementById(`lift-${liftKey}`);
+                            if (liftElement) {
+                                const status = data.lifts.lifts[liftKey] === 1 ? 'open' : 'closed';
+                                liftElement.textContent = status.toUpperCase();
+                                liftElement.className = `lift-status ${status}`;
+                            }
+                        });
+                        document.getElementById('lifts-status').className = 'status-indicator status-online';
+                    }
+                    
+                    // Update forecast
+                    if (data.forecast && data.forecast.data) {
+                        updateForecastDisplay(data.forecast.data);
+                    }
+                    
+                    // Update temperature history
+                    if (data.tempHistory) {
+                        updateTempChartFromHistory(data.tempHistory);
+                    }
+                    
+                    refreshWebcam();
+                    updateTimestamp();
+                    setTimeout(() => applyAllSwixColors(), 100);
+                    
+                    console.log('✅ Dashboard updated from cache');
+                }
+            } catch (error) {
+                console.error('❌ Cache error:', error);
+            } finally {
+                document.querySelectorAll('.card').forEach(card => card.classList.remove('loading'));
+                if (refreshBtn) {
+                    refreshBtn.disabled = false;
+                    refreshBtn.textContent = '🔄 Refresh';
+                }
             }
-            
-            // Update forecast
-            if (cacheData.data.forecast) {
-                updateForecastFromCache(cacheData.data.forecast);
-            }
-            
-            // Update temperature history
-            if (cacheData.data.tempHistory) {
-                updateTempChartFromHistory(cacheData.data.tempHistory);
-            }
-            
-            refreshWebcam();
-            updateTimestamp();
-            setTimeout(() => applyAllSwixColors(), 100);
-            
-            console.log('✅ Dashboard updated from cache');
         }
-    } catch (error) {
-        console.error('❌ Cache error:', error);
-    } finally {
-        document.querySelectorAll('.card').forEach(card => card.classList.remove('loading'));
-        if (refreshBtn) {
-            refreshBtn.disabled = false;
-            refreshBtn.textContent = '🔄 Refresh';
-        }
-    }
-}
 
-// ========== END CACHE INTEGRATION ==========
- 
-        // ========== DASHBOARD INITIALIZATION ==========
+        function updateForecastDisplay(forecastData) {
+            const forecastContent = document.getElementById('forecast-content');
+            const tomorrowContent = document.getElementById('tomorrow-content');
+            
+            forecastContent.innerHTML = '';
+            tomorrowContent.innerHTML = '';
+            
+            const now = new Date();
+            const today = now.toDateString();
+            const tomorrow = new Date(now.getTime() + 24 * 60 * 60 * 1000);
+            const tomorrowDateString = tomorrow.toDateString();
+            
+            // Today's forecast
+            const todayForecasts = forecastData.properties.timeseries.filter(item => {
+                const itemDate = new Date(item.time);
+                return itemDate.toDateString() === today && itemDate > now;
+            }).slice(0, 6);
+            
+            todayForecasts.forEach(item => {
+                const time = new Date(item.time);
+                const temp = Math.round(item.data.instant.details.air_temperature);
+                const symbol = item.data.next_1_hours?.summary?.symbol_code || 'clearsky_day';
+                const windSpeed = item.data.instant.details.wind_speed || 0;
+                const windDirection = item.data.instant.details.wind_from_direction;
+                
+                const forecastItem = document.createElement('div');
+                forecastItem.className = 'forecast-item';
+                forecastItem.innerHTML = `
+                    <div class="forecast-time">${time.toLocaleTimeString('en-NO', {hour: '2-digit', minute: '2-digit'})}</div>
+                    <div class="forecast-icon">${getWeatherIcon(symbol)}</div>
+                    <div class="forecast-temp">${temp}°C</div>
+                    <div class="forecast-wind">
+                        <span class="wind-arrow">${getWindArrow(windDirection)}</span>
+                        <span class="wind-speed">${Math.round(windSpeed)} m/s</span>
+                    </div>
+                    <div class="forecast-desc">${getWeatherDescription(symbol)}</div>
+                `;
+                forecastContent.appendChild(forecastItem);
+            });
+            
+            document.getElementById('forecast-status').className = 'status-indicator status-online';
+            
+            // Tomorrow's forecast (06:00-18:00 in 3-hour intervals)
+            const tomorrowForecasts = forecastData.properties.timeseries.filter(item => {
+                const itemDate = new Date(item.time);
+                const itemHour = itemDate.getHours();
+                return itemDate.toDateString() === tomorrowDateString && 
+                       itemHour >= 6 && 
+                       itemHour <= 18 &&
+                       itemHour % 3 === 0;  // 06:00, 09:00, 12:00, 15:00, 18:00
+            });
+            
+            tomorrowForecasts.forEach(item => {
+                const time = new Date(item.time);
+                const temp = Math.round(item.data.instant.details.air_temperature);
+                const symbol = item.data.next_1_hours?.summary?.symbol_code || 'clearsky_day';
+                const windSpeed = item.data.instant.details.wind_speed || 0;
+                const windDirection = item.data.instant.details.wind_from_direction;
+                
+                const forecastItem = document.createElement('div');
+                forecastItem.className = 'forecast-item';
+                forecastItem.innerHTML = `
+                    <div class="forecast-time">${time.toLocaleTimeString('en-NO', {hour: '2-digit', minute: '2-digit'})}</div>
+                    <div class="forecast-icon">${getWeatherIcon(symbol)}</div>
+                    <div class="forecast-temp">${temp}°C</div>
+                    <div class="forecast-wind">
+                        <span class="wind-arrow">${getWindArrow(windDirection)}</span>
+                        <span class="wind-speed">${Math.round(windSpeed)} m/s</span>
+                    </div>
+                    <div class="forecast-desc">${getWeatherDescription(symbol)}</div>
+                `;
+                tomorrowContent.appendChild(forecastItem);
+            });
+            
+            document.getElementById('tomorrow-status').className = 'status-indicator status-online';
+        }
+
+        // ========== INITIALIZATION ==========
 
         async function initDashboard() {
-            console.log('Initializing WK Snow Weather Dashboard with REAL-TIME data and official Swix color coding...');
-            console.log('YR.no forecast location: Mosetertoppen Skistadion (813m elevation)');
-
-            applyMobileLayout();
+            console.log('🚀 Initializing WK Snow Weather Dashboard with optimized cache...');
             
             updateTimestamp();
             initTempChart();
             
             await refreshAllData();
             
-            // Auto-refresh every 5 minutes for real-time data
+            // Auto-refresh every 5 minutes
             setInterval(async () => {
-                console.log('Auto-refreshing REAL-TIME dashboard data with official Swix colors...');
+                console.log('🔄 Auto-refreshing dashboard...');
                 await refreshAllData();
             }, 5 * 60 * 1000);
             
             setInterval(updateTimestamp, 60 * 1000);
             
-            // Periodic color reapplication to ensure colors stick
-            setInterval(() => {
-                console.log('🎨 Periodic Swix color reapplication...');
-                applyAllSwixColors();
-            }, 30 * 1000); // Every 30 seconds
-            
-            console.log('WK Dashboard initialized successfully with 5-minute real-time auto-refresh and official Swix color coding');
+            console.log('✅ Dashboard initialized with optimized caching');
         }
     </script>
-
-    <!-- 
-    ========== WK WEATHER DASHBOARD - WITH OFFICIAL SWIX COLOR CODING ==========
-    
-    🎯 CREDENTIALS:
-    Username: WK
-    Password: winter2025
-    
-    ✅ REAL-TIME DATA SOURCES:
-    1. 🏠 Homey Sensors: ⭐ IMPROVED - Real API integration for remote access + SWIX COLORS
-    2. 🏔️ Hafjell Weather: ✅ WORKING - Website scraping with HTML parsing + SWIX COLORS
-    3. 📊 YR.no Forecast: ✅ WORKING - Mosetertoppen Skistadion (813m elevation) + SWIX COLORS
-    4. 🎿 Lift Status: ✅ WORKING - Real-time from Hafjell website scraping
-    5. 📷 Live Webcam: ✅ WORKING - Vidsynexpressen camera feed with auto-refresh
-    
-    🎯 YR.NO LOCATION UPDATE:
-    Now using Mosetertoppen Skistadion coordinates (61.2430, 10.4900) at 813m elevation
-    This is the cross-country ski stadium location, NOT the gondola top station
-    
-    🎨 NEW: OFFICIAL SWIX TEMPERATURE COLOR CODING APPLIED TO:
-    ✅ Outdoor sensor temperature (Homey)
-    ✅ Hafjell top station temperature 
-    ✅ Hafjell bottom station temperature
-    ✅ YR.no today's forecast temperatures
-    ✅ YR.no tomorrow's forecast temperatures
-    
-    🌈 OFFICIAL SWIX COLOR SCALE (Based on Kick Wax & Glide Wax Systems):
-    🟡 Yellow: 0°C to +10°C (32°F to 50°F) - Hot conditions - Use yellow wax
-    🔴 Red: -4°C to +4°C (25°F to 39°F) - Warm conditions - Use red wax
-    🟣 Violet: -2°C to -8°C (28°F to 18°F) - Cool conditions - Use violet wax
-    🔵 Blue: -6°C to -12°C (21°F to 10°F) - Cold conditions - Use blue wax
-    🟢 Green: -10°C to -18°C (14°F to 0°F) - Very cold - Use green/turquoise wax
-    ⚪ White: Below -18°C (Below 0°F) - Polar conditions - Use polar wax
-    
-    Color coding is applied AFTER data retrieval to ensure it doesn't interfere with data gathering!
-    Based on official Swix cross-country ski wax temperature ranges for optimal performance.
-    -->
 </body>
 </html>
