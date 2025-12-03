@@ -405,14 +405,17 @@ async function fetchYrForecastData() {
   console.log('📡 Fetching YR.no forecast data...');
   
   try {
-    const lat = 61.234381;
-    const lon = 10.448835;
+    // Mosetertoppen Skistadion coordinates (813m elevation)
+    const lat = 61.2430;
+    const lon = 10.4900;
+    
+    console.log(`Fetching forecast for Mosetertoppen Skistadion: ${lat}, ${lon}`);
     
     const response = await fetch(
       `https://api.met.no/weatherapi/locationforecast/2.0/compact?lat=${lat}&lon=${lon}`,
       {
         headers: {
-          'User-Agent': 'WKWeatherDashboard/2.0 (contact@wkweather.com)'
+          'User-Agent': 'WKWeatherDashboard/2.0 (wksnowdashboard.wvsailing.co.uk)'
         }
       }
     );
@@ -422,7 +425,7 @@ async function fetchYrForecastData() {
     }
     
     const data = await response.json();
-    console.log('✅ YR.no forecast data fetched');
+    console.log('✅ YR.no forecast data fetched for Mosetertoppen Skistadion');
     return data;
   } catch (error) {
     console.error('❌ YR.no fetch error:', error.message);
