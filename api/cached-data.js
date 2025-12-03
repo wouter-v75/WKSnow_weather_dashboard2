@@ -119,82 +119,7 @@ async function storeTempHistory(redis, homeyTemp, hafjellTopTemp, hafjellBottomT
   }
 }
 
-// ========== DATA FETCHING FUNCTIONS ==========
-
-// Cache for Homey API connection (copied from working api/homey.js)
-let cachedHomeyApi = null;
-let cacheTimestamp = null;
-const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
-
-async function getHomeyApi() {
-  const now = Date.now();
-  
-  // Return cached connection if still valid
-  if (cachedHomeyApi && cacheTimestamp && (now - cacheTimestamp) < CACHE_DURATION) {
-    console.log('Using cached Homey API connection');
-    return cachedHomeyApi;
-  }
-  
-  console.log('Creating new Homey API connection...');
-  
-  const AthomCloudAPI = require('homey-api/lib/AthomCloudAPI');
-  
-  // Create Cloud API instance (exact same as working api/homey.js)
-  const cloudApi = new AthomCloudAPI({
-    clientId: process.env.HOMEY_CLIENT_ID,
-    clientSecret: process.env.HOMEY_CLIENT_SECRET,
-  });
-
-  // Authenticate (exact same as working api/homey.js)
-  await cloudApi.authenticate({
-    username: process.env.HOMEY_USERNAME,
-    password: process.env.HOMEY_PASSWORD,
-  });
-
-  // Get user and first Homey (exact same as working api/homey.js)
-  const user = await cloudApi.getAuthenticatedUser();
-  const homey = await user.getFirstHomey();
-  
-  // Create session (exact same as working api/homey.js)
-  const homeyApi = await homey.authenticate();
-  
-  // Cache the connection
-  cachedHomeyApi = homeyApi;
-  cacheTimestamp = now;
-  
-  console.log('Homey API connection established and cached');
-  return homeyApi;
-}
-
-async function getDeviceData(homeyApi, deviceId) {
-  try {
-    const device = await homeyApi.devices.getDevice({ id: deviceId });
-    const caps = device.capabilitiesObj || device.capabilities || {};
-    
-    const data = {};
-    
-    // Try different temperature capability names (exact same as working api/homey.js)
-    if (caps.measure_temperature) {
-      data.temperature = caps.measure_temperature.value;
-    } else if (caps.temperature) {
-      data.temperature = caps.temperature.value;
-    }
-    
-    // Try different humidity capability names (exact same as working api/homey.js)
-    if (caps.measure_humidity) {
-      data.humidity = caps.measure_humidity.value;
-    } else if (caps.humidity) {
-      data.humidity = caps.humidity.value;
-    }
-    
-    return data;
-  } catch (error) {
-    console.error(`Error fetching device ${deviceId}:`, error.message);
-    throw error;
-  }
-}
-
-// ========== HOMEY OAUTH WITH REFRESH TOKEN (EXACT COPY FROM WORKING API/HOMEY.JS) ==========
+// ========== HOMEY OAUTH WITH REFRESH TOKEN ==========
 
 // Token cache (persists across function invocations in same container)
 let cachedAccessToken = null;
@@ -398,7 +323,7 @@ async function createHomeySession(delegationToken, remoteUrl) {
 }
 
 async function fetchHomeyData() {
-  console.log('📡 Fetching Homey data using OAuth refresh token method...');
+  console.log('📡 Fetching Homey data using OAuth refresh token...');
   
   try {
     // Step 1: Get fresh access token
@@ -406,35 +331,16 @@ async function fetchHomeyData() {
     
     // Step 2: Get Homey info
     const { remoteUrl } = await getHomeyInfo(accessToken);
-    console.log('Homey remote URL:', remoteUrl);
     
     // Step 3: Get delegation token
     const delegationToken = await getDelegationToken(accessToken);
     
-    // Step 4: Try delegation token directly, fall back to session creation
-    let authToken = delegationToken;
-    
-    try {
-      console.log('Trying delegation token directly...');
-      const testResponse = await fetch(`${remoteUrl}/api/manager/devices/device/${process.env.HOMEY_DEVICE_ID_TEMP}`, {
-        method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${delegationToken}`
-        }
-      });
-      
-      if (!testResponse.ok) {
-        throw new Error('Delegation token not accepted directly');
-      }
-      console.log('✅ Delegation token works directly');
-    } catch (error) {
-      console.log('Delegation token failed, creating session...', error.message);
-      authToken = await createHomeySession(delegationToken, remoteUrl);
-    }
+    // Step 4: Create Homey session
+    const sessionToken = await createHomeySession(delegationToken, remoteUrl);
     
     // Step 5: Fetch temperature data
     const tempData = await getHomeyDeviceData(
-      authToken,
+      sessionToken,
       remoteUrl,
       process.env.HOMEY_DEVICE_ID_TEMP
     );
@@ -445,7 +351,7 @@ async function fetchHomeyData() {
     
     if (humidityDeviceId && humidityDeviceId !== process.env.HOMEY_DEVICE_ID_TEMP) {
       try {
-        humidityData = await getHomeyDeviceData(authToken, remoteUrl, humidityDeviceId);
+        humidityData = await getHomeyDeviceData(sessionToken, remoteUrl, humidityDeviceId);
       } catch (error) {
         console.warn('Could not fetch separate humidity sensor:', error.message);
       }
@@ -463,7 +369,6 @@ async function fetchHomeyData() {
     
   } catch (error) {
     console.error('❌ Homey OAuth fetch error:', error.message);
-    console.error('Stack:', error.stack);
     return null;
   }
 }
