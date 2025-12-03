@@ -121,7 +121,7 @@ async function storeTempHistory(redis, homeyTemp, hafjellTopTemp, hafjellBottomT
 
 // ========== DATA FETCHING FUNCTIONS ==========
 
-// Cache for Homey API connection (persists across function invocations)
+// Cache for Homey API connection (copied from working api/homey.js)
 let cachedHomeyApi = null;
 let cacheTimestamp = null;
 const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
@@ -131,7 +131,7 @@ async function getHomeyApi() {
   
   // Return cached connection if still valid
   if (cachedHomeyApi && cacheTimestamp && (now - cacheTimestamp) < CACHE_DURATION) {
-    console.log('✅ Using cached Homey API connection');
+    console.log('Using cached Homey API connection');
     return cachedHomeyApi;
   }
   
@@ -139,68 +139,98 @@ async function getHomeyApi() {
   
   const AthomCloudAPI = require('homey-api/lib/AthomCloudAPI');
   
-  // Create Cloud API instance
+  // Create Cloud API instance (exact same as working api/homey.js)
   const cloudApi = new AthomCloudAPI({
     clientId: process.env.HOMEY_CLIENT_ID,
     clientSecret: process.env.HOMEY_CLIENT_SECRET,
   });
 
-  // Authenticate
+  // Authenticate (exact same as working api/homey.js)
   await cloudApi.authenticate({
     username: process.env.HOMEY_USERNAME,
     password: process.env.HOMEY_PASSWORD,
   });
 
-  // Get user and first Homey
+  // Get user and first Homey (exact same as working api/homey.js)
   const user = await cloudApi.getAuthenticatedUser();
   const homey = await user.getFirstHomey();
   
-  // Create session
+  // Create session (exact same as working api/homey.js)
   const homeyApi = await homey.authenticate();
   
   // Cache the connection
   cachedHomeyApi = homeyApi;
   cacheTimestamp = now;
   
-  console.log('✅ Homey API connection established and cached');
+  console.log('Homey API connection established and cached');
   return homeyApi;
 }
 
-async function fetchHomeyData() {
-  console.log('📡 Fetching Homey sensor data...');
-  
+async function getDeviceData(homeyApi, deviceId) {
   try {
-    // Verify environment variables
-    if (!process.env.HOMEY_CLIENT_ID || !process.env.HOMEY_CLIENT_SECRET) {
-      throw new Error('Missing Homey OAuth credentials');
-    }
-    if (!process.env.HOMEY_USERNAME || !process.env.HOMEY_PASSWORD) {
-      throw new Error('Missing Homey account credentials');
-    }
-    if (!process.env.HOMEY_DEVICE_ID_TEMP) {
-      throw new Error('Missing HOMEY_DEVICE_ID_TEMP');
-    }
-    
-    // Get Homey API connection
-    const homeyApi = await getHomeyApi();
-    
-    // Get temperature device
-    const tempDeviceId = process.env.HOMEY_DEVICE_ID_TEMP;
-    console.log('Fetching device:', tempDeviceId);
-    
-    const device = await homeyApi.devices.getDevice({ id: tempDeviceId });
+    const device = await homeyApi.devices.getDevice({ id: deviceId });
     const caps = device.capabilitiesObj || device.capabilities || {};
     
-    const data = {
-      temperature: caps.measure_temperature?.value || caps.temperature?.value,
-      humidity: caps.measure_humidity?.value || caps.humidity?.value
+    const data = {};
+    
+    // Try different temperature capability names (exact same as working api/homey.js)
+    if (caps.measure_temperature) {
+      data.temperature = caps.measure_temperature.value;
+    } else if (caps.temperature) {
+      data.temperature = caps.temperature.value;
+    }
+    
+    // Try different humidity capability names (exact same as working api/homey.js)
+    if (caps.measure_humidity) {
+      data.humidity = caps.measure_humidity.value;
+    } else if (caps.humidity) {
+      data.humidity = caps.humidity.value;
+    }
+    
+    return data;
+  } catch (error) {
+    console.error(`Error fetching device ${deviceId}:`, error.message);
+    throw error;
+  }
+}
+
+async function fetchHomeyData() {
+  console.log('📡 Fetching Homey sensor data (using exact api/homey.js method)...');
+  
+  try {
+    // Get Homey API connection (exact same as working api/homey.js)
+    const homeyApi = await getHomeyApi();
+    
+    // Fetch temperature data (exact same as working api/homey.js)
+    const tempDeviceId = process.env.HOMEY_DEVICE_ID_TEMP;
+    const tempData = await getDeviceData(homeyApi, tempDeviceId);
+    
+    // Fetch humidity data (may be from same or different device - exact same as working api/homey.js)
+    let humidityData = tempData; // Default to same device
+    const humidityDeviceId = process.env.HOMEY_DEVICE_ID_HUMIDITY;
+    
+    if (humidityDeviceId && humidityDeviceId !== tempDeviceId) {
+      try {
+        humidityData = await getDeviceData(homeyApi, humidityDeviceId);
+      } catch (error) {
+        console.warn('Could not fetch separate humidity sensor, using temp sensor:', error.message);
+      }
+    }
+    
+    // Combine data (exact same as working api/homey.js)
+    const responseData = {
+      temperature: tempData.temperature,
+      humidity: humidityData.humidity || tempData.humidity,
+      timestamp: new Date().toISOString(),
+      source: 'homey-cloud-cached'
     };
     
-    console.log('✅ Homey data fetched successfully:', data);
-    return data;
+    console.log('✅ Successfully fetched Homey sensor data:', responseData);
+    
+    return responseData;
     
   } catch (error) {
-    console.error('❌ Homey fetch error:', error.message);
+    console.error('❌ Homey API Error:', error.message);
     console.error('Stack:', error.stack);
     
     // Clear cache on error
