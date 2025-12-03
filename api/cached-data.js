@@ -194,49 +194,204 @@ async function getDeviceData(homeyApi, deviceId) {
   }
 }
 
-async function fetchHomeyData() {
-  console.log('📡 Fetching Homey sensor data (using exact api/homey.js method)...');
+// ========== HOMEY OAUTH WITH REFRESH TOKEN (EXACT COPY FROM WORKING API/HOMEY.JS) ==========
+
+// Token cache (persists across function invocations in same container)
+let cachedAccessToken = null;
+let tokenExpiry = null;
+
+async function getAccessToken() {
+  const now = Date.now();
+  if (cachedAccessToken && tokenExpiry && (tokenExpiry - now) > 5 * 60 * 1000) {
+    console.log('Using cached access token');
+    return cachedAccessToken;
+  }
+
+  console.log('Refreshing access token...');
   
   try {
-    // Get Homey API connection (exact same as working api/homey.js)
-    const homeyApi = await getHomeyApi();
+    const response = await fetch('https://api.athom.com/oauth2/token', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'Authorization': 'Basic ' + Buffer.from(
+          `${process.env.HOMEY_CLIENT_ID}:${process.env.HOMEY_CLIENT_SECRET}`
+        ).toString('base64')
+      },
+      body: `grant_type=refresh_token&refresh_token=${process.env.HOMEY_REFRESH_TOKEN}`
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Token refresh failed: ${response.status} - ${errorText}`);
+    }
+
+    const tokenData = await response.json();
+    cachedAccessToken = tokenData.access_token;
+    tokenExpiry = now + (tokenData.expires_in * 1000);
     
-    // Fetch temperature data (exact same as working api/homey.js)
-    const tempDeviceId = process.env.HOMEY_DEVICE_ID_TEMP;
-    const tempData = await getDeviceData(homeyApi, tempDeviceId);
+    console.log('Access token refreshed successfully');
+    return cachedAccessToken;
     
-    // Fetch humidity data (may be from same or different device - exact same as working api/homey.js)
-    let humidityData = tempData; // Default to same device
+  } catch (error) {
+    console.error('Error refreshing token:', error.message);
+    throw error;
+  }
+}
+
+async function getDelegationToken(accessToken) {
+  try {
+    console.log('Requesting delegation token...');
+    const response = await fetch('https://api.athom.com/delegation/token?audience=homey', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'Authorization': `Bearer ${accessToken}`
+      }
+    });
+
+    if (!response.ok) {
+      throw new Error(`Delegation token failed: ${response.status}`);
+    }
+
+    const contentType = response.headers.get('content-type');
+    let delegationToken;
+    
+    if (contentType && contentType.includes('application/json')) {
+      const json = await response.json();
+      delegationToken = json.token || json;
+    } else {
+      delegationToken = await response.text();
+    }
+    
+    return delegationToken;
+    
+  } catch (error) {
+    console.error('Error getting delegation token:', error.message);
+    throw error;
+  }
+}
+
+async function getHomeyInfo(accessToken) {
+  try {
+    const response = await fetch('https://api.athom.com/user/me', {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${accessToken}`
+      }
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to get user info: ${response.status}`);
+    }
+
+    const userData = await response.json();
+    
+    if (!userData.homeys || userData.homeys.length === 0) {
+      throw new Error('No Homeys found for this account');
+    }
+
+    const homey = userData.homeys[0];
+    return {
+      homeyId: homey._id,
+      remoteUrl: homey.remoteUrl || homey.remoteUrlSecure
+    };
+    
+  } catch (error) {
+    console.error('Error getting Homey info:', error.message);
+    throw error;
+  }
+}
+
+async function getHomeyDeviceData(authToken, remoteUrl, deviceId) {
+  try {
+    const url = `${remoteUrl}/api/manager/devices/device`;
+    
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${authToken}`
+      }
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to get devices: ${response.status}`);
+    }
+
+    const allDevices = await response.json();
+    const device = allDevices[deviceId];
+    
+    if (!device) {
+      throw new Error(`Device ${deviceId} not found in Homey`);
+    }
+    
+    const caps = device.capabilitiesObj || device.capabilities || {};
+    const data = {};
+    
+    if (caps.measure_temperature) {
+      data.temperature = caps.measure_temperature.value;
+    } else if (caps.temperature) {
+      data.temperature = caps.temperature.value;
+    }
+    
+    if (caps.measure_humidity) {
+      data.humidity = caps.measure_humidity.value;
+    } else if (caps.humidity) {
+      data.humidity = caps.humidity.value;
+    }
+    
+    return data;
+    
+  } catch (error) {
+    console.error(`Error getting device ${deviceId}:`, error.message);
+    throw error;
+  }
+}
+
+async function fetchHomeyData() {
+  console.log('📡 Fetching Homey data using OAuth refresh token method...');
+  
+  try {
+    // Step 1: Get fresh access token
+    const accessToken = await getAccessToken();
+    
+    // Step 2: Get Homey info
+    const { remoteUrl } = await getHomeyInfo(accessToken);
+    
+    // Step 3: Get delegation token
+    const delegationToken = await getDelegationToken(accessToken);
+    
+    // Step 4: Fetch temperature data
+    const tempData = await getHomeyDeviceData(
+      delegationToken,
+      remoteUrl,
+      process.env.HOMEY_DEVICE_ID_TEMP
+    );
+    
+    // Step 5: Fetch humidity data (may be same or different device)
+    let humidityData = tempData;
     const humidityDeviceId = process.env.HOMEY_DEVICE_ID_HUMIDITY;
     
-    if (humidityDeviceId && humidityDeviceId !== tempDeviceId) {
+    if (humidityDeviceId && humidityDeviceId !== process.env.HOMEY_DEVICE_ID_TEMP) {
       try {
-        humidityData = await getDeviceData(homeyApi, humidityDeviceId);
+        humidityData = await getHomeyDeviceData(delegationToken, remoteUrl, humidityDeviceId);
       } catch (error) {
-        console.warn('Could not fetch separate humidity sensor, using temp sensor:', error.message);
+        console.warn('Could not fetch separate humidity sensor:', error.message);
       }
     }
     
-    // Combine data (exact same as working api/homey.js)
     const responseData = {
       temperature: tempData.temperature,
       humidity: humidityData.humidity || tempData.humidity,
       timestamp: new Date().toISOString(),
-      source: 'homey-cloud-cached'
+      source: 'homey-oauth-cached'
     };
     
     console.log('✅ Successfully fetched Homey sensor data:', responseData);
-    
     return responseData;
     
   } catch (error) {
-    console.error('❌ Homey API Error:', error.message);
-    console.error('Stack:', error.stack);
-    
-    // Clear cache on error
-    cachedHomeyApi = null;
-    cacheTimestamp = null;
-    
+    console.error('❌ Homey OAuth fetch error:', error.message);
     return null;
   }
 }
