@@ -36,18 +36,18 @@ function createOptimizedHomeyData(rawData) {
 function createOptimizedHafjellData(rawData) {
   return {
     top: {
-      temp: rawData.top?.temperature || null,
+      temp: rawData.top?.temperature === '--' ? null : rawData.top?.temperature || null,
       cond: rawData.top?.condition || 'Unknown',
-      wind: rawData.top?.wind || null,
-      snow: rawData.top?.snow || null,
-      snowDay: rawData.top?.snowLastDay || null
+      wind: rawData.top?.wind === '--' ? null : rawData.top?.wind || null,
+      snow: rawData.top?.snow === '--' ? null : rawData.top?.snow || null,
+      snowDay: rawData.top?.snowLastDay === '--' ? null : rawData.top?.snowLastDay || null
     },
     bottom: {
-      temp: rawData.bottom?.temperature || null,
+      temp: rawData.bottom?.temperature === '--' ? null : rawData.bottom?.temperature || null,
       cond: rawData.bottom?.condition || 'Unknown',
-      wind: rawData.bottom?.wind || null,
-      snow: rawData.bottom?.snow || null,
-      snowDay: rawData.bottom?.snowLastDay || null
+      wind: rawData.bottom?.wind === '--' ? null : rawData.bottom?.wind || null,
+      snow: rawData.bottom?.snow === '--' ? null : rawData.bottom?.snow || null,
+      snowDay: rawData.bottom?.snowLastDay === '--' ? null : rawData.bottom?.snowLastDay || null
     },
     ts: Date.now()
   };
@@ -464,32 +464,148 @@ async function fetchHafjellLiftStatus() {
 // ========== HTML PARSING HELPERS ==========
 
 function parseHafjellWeatherFromHTML(htmlContent) {
-  const tempWindPattern = /(\d{1,2})\s+(\d{1,2})\s+(\d+\.?\d*)m\/s\s+(\d+\.?\d*)m\/s/;
-  const match = htmlContent.match(tempWindPattern);
+  console.log('Parsing weather data from Hafjell HTML using DOM parsing...');
   
-  if (match) {
-    return {
+  try {
+    // Parse HTML into DOM
+    const jsdom = require('jsdom');
+    const { JSDOM } = jsdom;
+    const dom = new JSDOM(htmlContent);
+    const doc = dom.window.document;
+    const allText = doc.body.textContent.replace(/\s+/g, ' ').trim();
+    
+    // Initialize with '--' (no fallback values)
+    const weatherData = {
       top: {
-        temperature: match[1],
-        condition: 'Partly cloudy',
-        wind: match[3],
-        snow: '65',
-        snowLastDay: '0'
+        temperature: '--',
+        condition: 'Unknown',
+        wind: '--',
+        snow: '--',
+        snowLastDay: '--'
       },
       bottom: {
-        temperature: match[2],
-        condition: 'Partly cloudy',
-        wind: match[4],
-        snow: '65',
-        snowLastDay: '0'
+        temperature: '--',
+        condition: 'Unknown',
+        wind: '--',
+        snow: '--',
+        snowLastDay: '--'
       }
     };
+
+    // Parse temperature and wind from text pattern
+    const tempWindPattern = /(-?\d{1,2})\s+(-?\d{1,2})\s+(\d+\.?\d*)m\/s\s+(\d+\.?\d*)m\/s/;
+    const match = allText.match(tempWindPattern);
+    
+    if (match) {
+      weatherData.top.temperature = match[1];
+      weatherData.bottom.temperature = match[2];
+      weatherData.top.wind = match[3];
+      weatherData.bottom.wind = match[4];
+      console.log(`✅ Temp/Wind: Top ${match[1]}°C ${match[3]}m/s, Bottom ${match[2]}°C ${match[4]}m/s`);
+    } else {
+      console.log('⚠️ Could not parse temperature/wind');
+    }
+    
+    // Parse weather condition
+    if (allText.includes('Mostly sunny')) {
+      weatherData.top.condition = 'Mostly sunny';
+      weatherData.bottom.condition = 'Mostly sunny';
+    } else if (allText.includes('Partly cloudy')) {
+      weatherData.top.condition = 'Partly cloudy';
+      weatherData.bottom.condition = 'Partly cloudy';
+    } else if (allText.includes('Cloudy')) {
+      weatherData.top.condition = 'Cloudy';
+      weatherData.bottom.condition = 'Cloudy';
+    } else if (allText.includes('Clear')) {
+      weatherData.top.condition = 'Clear';
+      weatherData.bottom.condition = 'Clear';
+    }
+    
+    // Method 1: Parse "Slopes" for snow depth
+    const pisteSectionSlopes = doc.querySelector('.w--conditions-piste');
+    if (pisteSectionSlopes) {
+      const topSpan = pisteSectionSlopes.querySelector('.w--top');
+      const bottomSpan = pisteSectionSlopes.querySelector('.w--bottom');
+      
+      if (topSpan && topSpan.textContent) {
+        const topValue = topSpan.textContent.replace(/[^\d]/g, '');
+        if (topValue) {
+          weatherData.top.snow = topValue;
+          console.log(`✅ Snow depth (Slopes) Top: ${topValue} cm`);
+        }
+      }
+      
+      if (bottomSpan && bottomSpan.textContent) {
+        const bottomValue = bottomSpan.textContent.replace(/[^\d]/g, '');
+        if (bottomValue) {
+          weatherData.bottom.snow = bottomValue;
+          console.log(`✅ Snow depth (Slopes) Bottom: ${bottomValue} cm`);
+        }
+      }
+    } else {
+      console.log('⚠️ Could not find .w--conditions-piste section');
+    }
+    
+    // Method 2: Parse "Last day" for fresh snow
+    const lastDaySection = doc.querySelector('.w--conditions-lastday');
+    if (lastDaySection) {
+      const topSpan = lastDaySection.querySelector('.w--top');
+      const bottomSpan = lastDaySection.querySelector('.w--bottom');
+      
+      if (topSpan && topSpan.textContent) {
+        const topValue = topSpan.textContent.replace(/[^\d]/g, '');
+        if (topValue) {
+          weatherData.top.snowLastDay = topValue;
+          console.log(`✅ Fresh snow (Last day) Top: ${topValue} cm`);
+        }
+      }
+      
+      if (bottomSpan && bottomSpan.textContent) {
+        const bottomValue = bottomSpan.textContent.replace(/[^\d]/g, '');
+        if (bottomValue) {
+          weatherData.bottom.snowLastDay = bottomValue;
+          console.log(`✅ Fresh snow (Last day) Bottom: ${bottomValue} cm`);
+        }
+      }
+    } else {
+      console.log('⚠️ Could not find .w--conditions-lastday section');
+    }
+    
+    // Fallback: Try "Terrain" if Slopes not available
+    if (weatherData.top.snow === '--' || weatherData.bottom.snow === '--') {
+      const terrainSection = doc.querySelector('.w--conditions-terrain');
+      if (terrainSection) {
+        const topSpan = terrainSection.querySelector('.w--top');
+        const bottomSpan = terrainSection.querySelector('.w--bottom');
+        
+        if (topSpan && topSpan.textContent && weatherData.top.snow === '--') {
+          const topValue = topSpan.textContent.replace(/[^\d]/g, '');
+          if (topValue) {
+            weatherData.top.snow = topValue;
+            console.log(`✅ Snow depth (Terrain fallback) Top: ${topValue} cm`);
+          }
+        }
+        
+        if (bottomSpan && bottomSpan.textContent && weatherData.bottom.snow === '--') {
+          const bottomValue = bottomSpan.textContent.replace(/[^\d]/g, '');
+          if (bottomValue) {
+            weatherData.bottom.snow = bottomValue;
+            console.log(`✅ Snow depth (Terrain fallback) Bottom: ${bottomValue} cm`);
+          }
+        }
+      }
+    }
+    
+    console.log('📊 Final parsed Hafjell data:', weatherData);
+    return weatherData;
+    
+  } catch (error) {
+    console.error('❌ Hafjell parse error:', error);
+    return {
+      top: { temperature: '--', condition: 'Error', wind: '--', snow: '--', snowLastDay: '--' },
+      bottom: { temperature: '--', condition: 'Error', wind: '--', snow: '--', snowLastDay: '--' }
+    };
   }
-  
-  return {
-    top: { temperature: '11', condition: 'Mostly sunny', wind: '5.6', snow: '65', snowLastDay: '0' },
-    bottom: { temperature: '20', condition: 'Mostly sunny', wind: '2.0', snow: '65', snowLastDay: '0' }
-  };
 }
 
 function parseHafjellLiftStatusFromHTML(htmlContent) {
