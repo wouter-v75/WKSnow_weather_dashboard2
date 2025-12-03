@@ -55,15 +55,41 @@ function createOptimizedHafjellData(rawData) {
 
 function createOptimizedYrData(rawData) {
   const now = new Date();
-  const next24h = new Date(now.getTime() + 24 * 60 * 60 * 1000);
+  const tomorrow = new Date(now);
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  tomorrow.setHours(0, 0, 0, 0); // Start of tomorrow
+  
+  const dayAfterTomorrow = new Date(tomorrow);
+  dayAfterTomorrow.setDate(dayAfterTomorrow.getDate() + 1);
+  dayAfterTomorrow.setHours(0, 0, 0, 0); // Start of day after tomorrow
   
   const timeseries = rawData.properties?.timeseries || [];
-  const filtered = timeseries.filter(item => {
+  
+  // Filter for today (next 24 hours from now)
+  const todayFiltered = timeseries.filter(item => {
     const itemDate = new Date(item.time);
+    const next24h = new Date(now.getTime() + 24 * 60 * 60 * 1000);
     return itemDate >= now && itemDate <= next24h;
   });
   
-  const optimized = filtered.map(item => ({
+  // Filter for tomorrow (06:00-18:00 in 3-hour steps)
+  const tomorrowFiltered = timeseries.filter(item => {
+    const itemDate = new Date(item.time);
+    const itemHour = itemDate.getHours();
+    
+    // Must be tomorrow and within 06:00-18:00
+    return itemDate >= tomorrow && 
+           itemDate < dayAfterTomorrow &&
+           itemHour >= 6 && 
+           itemHour <= 18;
+  }).filter((item, index, array) => {
+    // Keep only 3-hour steps: 06:00, 09:00, 12:00, 15:00, 18:00
+    const itemHour = new Date(item.time).getHours();
+    return itemHour % 3 === 0;
+  });
+  
+  // Optimize today's forecast
+  const todayOptimized = todayFiltered.map(item => ({
     t: item.time,
     temp: Math.round(item.data.instant.details.air_temperature),
     sym: item.data.next_1_hours?.summary?.symbol_code || 'clearsky_day',
@@ -71,8 +97,20 @@ function createOptimizedYrData(rawData) {
     windDir: Math.round(item.data.instant.details.wind_from_direction || 0)
   }));
   
+  // Optimize tomorrow's forecast
+  const tomorrowOptimized = tomorrowFiltered.map(item => ({
+    t: item.time,
+    temp: Math.round(item.data.instant.details.air_temperature),
+    sym: item.data.next_1_hours?.summary?.symbol_code || 'clearsky_day',
+    wind: Math.round(item.data.instant.details.wind_speed || 0),
+    windDir: Math.round(item.data.instant.details.wind_from_direction || 0)
+  }));
+  
+  console.log(`✅ YR.no: ${todayOptimized.length} today forecasts, ${tomorrowOptimized.length} tomorrow forecasts`);
+  
   return {
-    fc: optimized,
+    today: todayOptimized,
+    tomorrow: tomorrowOptimized,
     ts: Date.now()
   };
 }
