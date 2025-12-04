@@ -128,10 +128,12 @@ function parseLiftStatus(liftsData) {
 // ========== YR.NO ==========
 
 async function getYrForecast() {
-  console.log('📡 Fetching YR.no...');
+  console.log('📡 Fetching YR.no for Mosetertoppen Skistadion (813m)...');
   
+  // Mosetertoppen Skistadion coordinates - 813m elevation
+  // This is the cross-country ski stadium, NOT the gondola top station
   const response = await fetch(
-    'https://api.met.no/weatherapi/locationforecast/2.0/compact?lat=61.2344&lon=10.4488',
+    'https://api.met.no/weatherapi/locationforecast/2.0/compact?lat=61.2430&lon=10.4900',
     { headers: { 'User-Agent': 'WKWeatherDashboard/1.0 (wk@example.com)' } }
   );
   
