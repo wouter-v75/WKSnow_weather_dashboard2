@@ -879,7 +879,7 @@
             <div class="card" id="lifts-card">
                 <div class="card-header">
                     <div class="card-title">
-                        Hafjell Lifts (Fnugg.no)
+                        Hafjell Lifts (Real-Time)
                         <span class="status-indicator status-offline" id="lifts-status"></span>
                     </div>
                 </div>
@@ -919,7 +919,7 @@
             <div class="card" id="hafjell-card">
                 <div class="card-header">
                     <div class="card-title">
-                        Hafjell Stations (Fnugg.no)
+                        Hafjell Stations
                         <span class="status-indicator status-offline" id="hafjell-status"></span>
                     </div>
                 </div>
@@ -935,18 +935,26 @@
                                 <div class="weather-desc" id="top-desc">Loading...</div>
                             </div>
                         </div>
-                        <div class="weather-details" style="grid-template-columns: 1fr; gap: 4px;">
+                        <div class="weather-details" style="grid-template-columns: 1fr 1fr; gap: 4px;">
                             <div class="detail-item">
                                 <div class="detail-value" id="top-wind">-- m/s</div>
                                 <div class="detail-label">Wind</div>
                             </div>
                             <div class="detail-item">
-                                <div class="detail-value" id="top-snow">-- cm</div>
-                                <div class="detail-label">Snow</div>
+                                <div class="detail-value" id="top-snow-terrain">-- cm</div>
+                                <div class="detail-label">Snow Terrain</div>
+                            </div>
+                            <div class="detail-item">
+                                <div class="detail-value" id="top-snow-slope">-- cm</div>
+                                <div class="detail-label">Snow Slope</div>
                             </div>
                             <div class="detail-item">
                                 <div class="detail-value" id="top-snow-day">-- cm</div>
                                 <div class="detail-label">Last Day</div>
+                            </div>
+                            <div class="detail-item" style="grid-column: 1 / -1;">
+                                <div class="detail-value" id="top-snow-week">-- cm</div>
+                                <div class="detail-label">Last Week</div>
                             </div>
                         </div>
                     </div>
@@ -961,18 +969,26 @@
                                 <div class="weather-desc" id="bottom-desc">Loading...</div>
                             </div>
                         </div>
-                        <div class="weather-details" style="grid-template-columns: 1fr; gap: 4px;">
+                        <div class="weather-details" style="grid-template-columns: 1fr 1fr; gap: 4px;">
                             <div class="detail-item">
                                 <div class="detail-value" id="bottom-wind">-- m/s</div>
                                 <div class="detail-label">Wind</div>
                             </div>
                             <div class="detail-item">
-                                <div class="detail-value" id="bottom-snow">-- cm</div>
-                                <div class="detail-label">Snow</div>
+                                <div class="detail-value" id="bottom-snow-terrain">-- cm</div>
+                                <div class="detail-label">Snow Terrain</div>
+                            </div>
+                            <div class="detail-item">
+                                <div class="detail-value" id="bottom-snow-slope">-- cm</div>
+                                <div class="detail-label">Snow Slope</div>
                             </div>
                             <div class="detail-item">
                                 <div class="detail-value" id="bottom-snow-day">-- cm</div>
                                 <div class="detail-label">Last Day</div>
+                            </div>
+                            <div class="detail-item" style="grid-column: 1 / -1;">
+                                <div class="detail-value" id="bottom-snow-week">-- cm</div>
+                                <div class="detail-label">Last Week</div>
                             </div>
                         </div>
                     </div>
@@ -1460,8 +1476,15 @@
                     document.getElementById('top-temp').textContent = h.top.temperature + '°C';
                     document.getElementById('top-desc').textContent = h.top.condition;
                     document.getElementById('top-wind').textContent = h.top.wind + ' m/s';
-                    document.getElementById('top-snow').textContent = h.top.snow + ' cm';
-                    document.getElementById('top-snow-day').textContent = h.top.snowLastDay + ' cm';
+                    
+                    // Top station snow data
+                    if (h.top.snow) {
+                        document.getElementById('top-snow-terrain').textContent = h.top.snow.depth_terrain + ' cm';
+                        document.getElementById('top-snow-slope').textContent = h.top.snow.depth_slope + ' cm';
+                        document.getElementById('top-snow-day').textContent = h.top.snow.today + ' cm';
+                        document.getElementById('top-snow-week').textContent = h.top.snow.week + ' cm';
+                    }
+                    
                     document.getElementById('top-icon').textContent = getWeatherIconFromCondition(h.top.condition);
                     setTimeout(() => applySwixColorToElement('top-temp', h.top.temperature), 50);
                     
@@ -1469,8 +1492,15 @@
                     document.getElementById('bottom-temp').textContent = h.bottom.temperature + '°C';
                     document.getElementById('bottom-desc').textContent = h.bottom.condition;
                     document.getElementById('bottom-wind').textContent = h.bottom.wind + ' m/s';
-                    document.getElementById('bottom-snow').textContent = h.bottom.snow + ' cm';
-                    document.getElementById('bottom-snow-day').textContent = h.bottom.snowLastDay + ' cm';
+                    
+                    // Bottom station snow data
+                    if (h.bottom.snow) {
+                        document.getElementById('bottom-snow-terrain').textContent = h.bottom.snow.depth_terrain + ' cm';
+                        document.getElementById('bottom-snow-slope').textContent = h.bottom.snow.depth_slope + ' cm';
+                        document.getElementById('bottom-snow-day').textContent = h.bottom.snow.today + ' cm';
+                        document.getElementById('bottom-snow-week').textContent = h.bottom.snow.week + ' cm';
+                    }
+                    
                     document.getElementById('bottom-icon').textContent = getWeatherIconFromCondition(h.bottom.condition);
                     setTimeout(() => applySwixColorToElement('bottom-temp', h.bottom.temperature), 50);
                     
