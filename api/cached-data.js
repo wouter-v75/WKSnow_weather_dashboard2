@@ -43,8 +43,8 @@ async function getFnuggData() {
   let hafjellHit = null;
   
   try {
-    // API returns all 56 resorts in a single call by default
-    const url = 'https://api.fnugg.no/search';
+    // API has 120 resorts total - request all with size parameter
+    const url = 'https://api.fnugg.no/search?size=150';
     
     const response = await fetch(url, {
       headers: { 
@@ -61,7 +61,7 @@ async function getFnuggData() {
     const hits = data.hits?.hits || [];
     const total = data.hits?.total || 0;
     
-    console.log(`✅ Received ${hits.length} resorts (Total: ${total})`);
+    console.log(`✅ Received ${hits.length} resorts out of ${total} total`);
     
     // Find Hafjell (ID=12)
     hafjellHit = hits.find(hit => {
