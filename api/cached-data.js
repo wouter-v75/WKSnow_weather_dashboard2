@@ -3,9 +3,34 @@
  * 
  * This version works WITHOUT Redis to unblock deployment
  * Always fetches fresh data
+ * Includes in-memory temperature history for 12-hour trend
  */
 
 const HAFJELL_RESORT_ID = 12;
+
+// In-memory temperature history (persists during function warm state)
+// Note: This resets when function goes cold (~15 min idle)
+let temperatureHistory = [];
+const MAX_HISTORY_POINTS = 144; // 12 hours at 5-min intervals
+
+function addToHistory(homeyTemp, topTemp, bottomTemp) {
+  const entry = {
+    ts: new Date().toISOString(),
+    h: homeyTemp ? parseFloat(homeyTemp) : null,
+    t: topTemp ? parseFloat(topTemp) : null,
+    b: bottomTemp ? parseFloat(bottomTemp) : null
+  };
+  
+  temperatureHistory.push(entry);
+  
+  // Keep only last 144 points (12 hours)
+  if (temperatureHistory.length > MAX_HISTORY_POINTS) {
+    temperatureHistory.shift();
+  }
+  
+  console.log(`📊 History: ${temperatureHistory.length} points`);
+  return temperatureHistory;
+}
 
 // ========== FNUGG API ==========
 
@@ -160,7 +185,12 @@ async function fetchAllData() {
     hafjell: fnugg,
     yr: yr,
     homey: homey,
-    lastUpdate: new Date().toISOString()
+    lastUpdate: new Date().toISOString(),
+    tempHistory: addToHistory(
+      homey.temperature,
+      fnugg.top.temperature,
+      fnugg.bottom.temperature
+    )
   };
 }
 
