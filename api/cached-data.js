@@ -1,422 +1,222 @@
 /**
- * Vercel Serverless Function: Redis Cloud Cache Handler (PRODUCTION)
+ * Vercel Serverless Function: Optimized Cache Handler with Fnugg API
  * 
- * OPTIMIZATIONS:
- * 1. Store ONLY essential dashboard data (minimized payload)
- * 2. 15-minute update interval
- * 3. Store 12-hour temperature history for trend chart
- * 4. Efficient data structure for fast retrieval
+ * Handles cached weather data with Fnugg API integration for Hafjell
+ * 
+ * Environment variables required:
+ * - REDIS_URL (Redis Cloud connection string)
+ * - HOMEY_CLIENT_ID, HOMEY_CLIENT_SECRET
+ * - HOMEY_USERNAME, HOMEY_PASSWORD
+ * - HOMEY_DEVICE_ID_TEMP, HOMEY_DEVICE_ID_HUMIDITY
+ * - CACHE_AUTH_TOKEN (for refresh endpoint security)
  */
 
-const { createClient } = require('redis');
+const redis = require('redis');
+const AthomCloudAPI = require('homey-api/lib/AthomCloudAPI');
 
-// Redis Cloud connection helper
+const CACHE_KEY = 'wk:weather:cache';
+const CACHE_TTL = 900; // 15 minutes
+
+// Mosetertoppen Skistadion coordinates (813m elevation)
+const FORECAST_LAT = 61.2430;
+const FORECAST_LON = 10.4900;
+
+// Hafjell resort ID for Fnugg API
+const HAFJELL_RESORT_ID = 18; // Hafjell's ID in Fnugg API
+
+let redisClient = null;
+
+// ========== REDIS CONNECTION ==========
+
 async function getRedisClient() {
-  const client = createClient({
+  if (redisClient) return redisClient;
+  
+  redisClient = redis.createClient({
     url: process.env.REDIS_URL,
     socket: {
-      reconnectStrategy: (retries) => Math.min(retries * 50, 500)
+      connectTimeout: 10000,
+      reconnectStrategy: (retries) => {
+        if (retries > 3) return new Error('Max retries reached');
+        return Math.min(retries * 100, 3000);
+      }
     }
   });
   
-  await client.connect();
-  return client;
+  redisClient.on('error', (err) => console.error('Redis Client Error:', err));
+  
+  await redisClient.connect();
+  console.log('✅ Redis connected');
+  
+  return redisClient;
 }
 
-// ========== DATA STRUCTURE OPTIMIZATION ==========
+// ========== HOMEY API ==========
 
-function createOptimizedHomeyData(rawData) {
-  return {
-    temp: rawData.temperature !== undefined ? parseFloat(rawData.temperature).toFixed(1) : null,
-    hum: rawData.humidity !== undefined ? Math.round(rawData.humidity) : null,
-    ts: Date.now()
-  };
-}
-
-function createOptimizedHafjellData(rawData) {
-  return {
-    top: {
-      temp: rawData.top?.temperature === '--' ? null : rawData.top?.temperature || null,
-      cond: rawData.top?.condition || 'Unknown',
-      wind: rawData.top?.wind === '--' ? null : rawData.top?.wind || null,
-      snow: rawData.top?.snow === '--' ? null : rawData.top?.snow || null,
-      snowDay: rawData.top?.snowLastDay === '--' ? null : rawData.top?.snowLastDay || null
-    },
-    bottom: {
-      temp: rawData.bottom?.temperature === '--' ? null : rawData.bottom?.temperature || null,
-      cond: rawData.bottom?.condition || 'Unknown',
-      wind: rawData.bottom?.wind === '--' ? null : rawData.bottom?.wind || null,
-      snow: rawData.bottom?.snow === '--' ? null : rawData.bottom?.snow || null,
-      snowDay: rawData.bottom?.snowLastDay === '--' ? null : rawData.bottom?.snowLastDay || null
-    },
-    ts: Date.now()
-  };
-}
-
-function createOptimizedYrData(rawData) {
-  const now = new Date();
-  const next48h = new Date(now.getTime() + 48 * 60 * 60 * 1000);
-  
-  const timeseries = rawData.properties?.timeseries || [];
-  
-  // Keep only next 48 hours of data
-  const filteredTimeseries = timeseries.filter(item => {
-    const itemDate = new Date(item.time);
-    return itemDate >= now && itemDate <= next48h;
-  });
-  
-  console.log(`✅ YR.no: ${filteredTimeseries.length} forecast entries (48h)`);
-  
-  // Store in format frontend expects
-  return {
-    data: {
-      properties: {
-        timeseries: filteredTimeseries
-      }
-    },
-    ts: Date.now()
-  };
-}
-
-function createOptimizedLiftData(rawData) {
-  const lifts = {};
-  Object.keys(rawData).forEach(liftKey => {
-    lifts[liftKey] = rawData[liftKey] === 'open' ? 1 : 0;
-  });
-  
-  return {
-    lifts,
-    ts: Date.now()
-  };
-}
-
-// ========== TEMPERATURE HISTORY (12 HOURS) ==========
-
-async function storeTempHistory(redis, homeyTemp, hafjellTopTemp, hafjellBottomTemp) {
-  const HISTORY_KEY = 'temp:history';
-  const MAX_HISTORY = 48; // 12 hours * 4 readings per hour
-  
-  const historyEntry = {
-    ts: Date.now(),
-    h: homeyTemp ? parseFloat(homeyTemp) : null,
-    t: hafjellTopTemp ? parseFloat(hafjellTopTemp) : null,
-    b: hafjellBottomTemp ? parseFloat(hafjellBottomTemp) : null
-  };
+async function getHomeyData() {
+  console.log('📡 Fetching Homey data...');
   
   try {
-    const existing = await redis.get(HISTORY_KEY);
-    let history = existing ? JSON.parse(existing) : [];
-    
-    history.push(historyEntry);
-    
-    if (history.length > MAX_HISTORY) {
-      history = history.slice(-MAX_HISTORY);
-    }
-    
-    await redis.setEx(HISTORY_KEY, 24 * 60 * 60, JSON.stringify(history));
-    console.log(`✅ Stored temperature history: ${history.length} readings`);
-  } catch (error) {
-    console.error('❌ Error storing temperature history:', error);
-  }
-}
-
-// ========== HOMEY OAUTH WITH REFRESH TOKEN ==========
-
-// Token cache (persists across function invocations in same container)
-let cachedAccessToken = null;
-let tokenExpiry = null;
-
-async function getAccessToken() {
-  const now = Date.now();
-  if (cachedAccessToken && tokenExpiry && (tokenExpiry - now) > 5 * 60 * 1000) {
-    console.log('Using cached access token');
-    return cachedAccessToken;
-  }
-
-  console.log('Refreshing access token...');
-  
-  try {
-    const response = await fetch('https://api.athom.com/oauth2/token', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/x-www-form-urlencoded',
-        'Authorization': 'Basic ' + Buffer.from(
-          `${process.env.HOMEY_CLIENT_ID}:${process.env.HOMEY_CLIENT_SECRET}`
-        ).toString('base64')
-      },
-      body: `grant_type=refresh_token&refresh_token=${process.env.HOMEY_REFRESH_TOKEN}`
+    const cloudApi = new AthomCloudAPI({
+      clientId: process.env.HOMEY_CLIENT_ID,
+      clientSecret: process.env.HOMEY_CLIENT_SECRET,
     });
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`Token refresh failed: ${response.status} - ${errorText}`);
-    }
-
-    const tokenData = await response.json();
-    cachedAccessToken = tokenData.access_token;
-    tokenExpiry = now + (tokenData.expires_in * 1000);
-    
-    console.log('Access token refreshed successfully');
-    return cachedAccessToken;
-    
-  } catch (error) {
-    console.error('Error refreshing token:', error.message);
-    throw error;
-  }
-}
-
-async function getDelegationToken(accessToken) {
-  try {
-    console.log('Requesting delegation token...');
-    const response = await fetch('https://api.athom.com/delegation/token?audience=homey', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/x-www-form-urlencoded',
-        'Authorization': `Bearer ${accessToken}`
-      }
+    await cloudApi.authenticateWithUsernamePassword({
+      username: process.env.HOMEY_USERNAME,
+      password: process.env.HOMEY_PASSWORD,
     });
 
-    if (!response.ok) {
-      throw new Error(`Delegation token failed: ${response.status}`);
-    }
-
-    const contentType = response.headers.get('content-type');
-    let delegationToken;
+    const user = await cloudApi.getAuthenticatedUser();
+    const homeys = await user.getHomeys();
     
-    if (contentType && contentType.includes('application/json')) {
-      const json = await response.json();
-      delegationToken = json.token || json;
-    } else {
-      delegationToken = await response.text();
+    if (homeys.length === 0) {
+      throw new Error('No Homey devices found');
     }
     
-    return delegationToken;
+    const homeyApi = await homeys[0].authenticate();
     
-  } catch (error) {
-    console.error('Error getting delegation token:', error.message);
-    throw error;
-  }
-}
-
-async function getHomeyInfo(accessToken) {
-  try {
-    const response = await fetch('https://api.athom.com/user/me', {
-      method: 'GET',
-      headers: {
-        'Authorization': `Bearer ${accessToken}`
-      }
+    // Get temperature device
+    const tempDevice = await homeyApi.devices.getDevice({ 
+      id: process.env.HOMEY_DEVICE_ID_TEMP 
     });
-
-    if (!response.ok) {
-      throw new Error(`Failed to get user info: ${response.status}`);
-    }
-
-    const userData = await response.json();
     
-    if (!userData.homeys || userData.homeys.length === 0) {
-      throw new Error('No Homeys found for this account');
+    const tempCaps = tempDevice.capabilitiesObj || tempDevice.capabilities || {};
+    const temp = (tempCaps.measure_temperature || tempCaps.temperature)?.value;
+    
+    // Get humidity (may be from same or different device)
+    let hum = (tempCaps.measure_humidity || tempCaps.humidity)?.value;
+    
+    if (!hum && process.env.HOMEY_DEVICE_ID_HUMIDITY && 
+        process.env.HOMEY_DEVICE_ID_HUMIDITY !== process.env.HOMEY_DEVICE_ID_TEMP) {
+      const humDevice = await homeyApi.devices.getDevice({ 
+        id: process.env.HOMEY_DEVICE_ID_HUMIDITY 
+      });
+      const humCaps = humDevice.capabilitiesObj || humDevice.capabilities || {};
+      hum = (humCaps.measure_humidity || humCaps.humidity)?.value;
     }
-
-    const homey = userData.homeys[0];
+    
+    console.log(`✅ Homey: ${temp}°C, ${hum}%`);
+    
     return {
-      homeyId: homey._id,
-      remoteUrl: homey.remoteUrl || homey.remoteUrlSecure
+      temp: temp ? parseFloat(temp).toFixed(1) : null,
+      hum: hum ? Math.round(hum) : null,
+      ts: Date.now()
     };
-    
   } catch (error) {
-    console.error('Error getting Homey info:', error.message);
-    throw error;
+    console.error('❌ Homey error:', error.message);
+    return { temp: null, hum: null, ts: Date.now() };
   }
 }
 
-async function getHomeyDeviceData(authToken, remoteUrl, deviceId) {
-  try {
-    const url = `${remoteUrl}/api/manager/devices/device`;
-    
-    const response = await fetch(url, {
-      method: 'GET',
-      headers: {
-        'Authorization': `Bearer ${authToken}`
-      }
-    });
+// ========== FNUGG API FOR HAFJELL ==========
 
-    if (!response.ok) {
-      throw new Error(`Failed to get devices: ${response.status}`);
-    }
-
-    const allDevices = await response.json();
-    const device = allDevices[deviceId];
-    
-    if (!device) {
-      throw new Error(`Device ${deviceId} not found in Homey`);
-    }
-    
-    const caps = device.capabilitiesObj || device.capabilities || {};
-    const data = {};
-    
-    if (caps.measure_temperature) {
-      data.temperature = caps.measure_temperature.value;
-    } else if (caps.temperature) {
-      data.temperature = caps.temperature.value;
-    }
-    
-    if (caps.measure_humidity) {
-      data.humidity = caps.measure_humidity.value;
-    } else if (caps.humidity) {
-      data.humidity = caps.humidity.value;
-    }
-    
-    return data;
-    
-  } catch (error) {
-    console.error(`Error getting device ${deviceId}:`, error.message);
-    throw error;
-  }
-}
-
-async function createHomeySession(delegationToken, remoteUrl) {
-  try {
-    console.log('Creating Homey session...');
-    
-    const response = await fetch(`${remoteUrl}/api/manager/users/login`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({ token: delegationToken })
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error('Homey session creation failed:', response.status, errorText);
-      throw new Error(`Homey session creation failed: ${response.status}`);
-    }
-
-    const contentType = response.headers.get('content-type');
-    let sessionToken;
-    
-    if (contentType && contentType.includes('application/json')) {
-      const json = await response.json();
-      
-      if (json.token) {
-        sessionToken = json.token;
-      } else if (json.bearer_token) {
-        sessionToken = json.bearer_token;
-      } else if (typeof json === 'string') {
-        sessionToken = json;
-      } else {
-        sessionToken = JSON.stringify(json);
-      }
-      
-      sessionToken = sessionToken.replace(/^"(.*)"$/, '$1');
-    } else {
-      sessionToken = await response.text();
-      sessionToken = sessionToken.replace(/^"(.*)"$/, '$1');
-    }
-    
-    console.log('Homey session created successfully');
-    return sessionToken;
-    
-  } catch (error) {
-    console.error('Error creating Homey session:', error.message);
-    throw error;
-  }
-}
-
-async function fetchHomeyData() {
-  console.log('📡 Fetching Homey data using OAuth refresh token...');
+async function getHafjellDataFromFnugg() {
+  console.log('📡 Fetching Hafjell data from Fnugg API...');
   
   try {
-    // Step 1: Get fresh access token
-    const accessToken = await getAccessToken();
-    
-    // Step 2: Get Homey info
-    const { remoteUrl } = await getHomeyInfo(accessToken);
-    
-    // Step 3: Get delegation token
-    const delegationToken = await getDelegationToken(accessToken);
-    
-    // Step 4: Create Homey session
-    const sessionToken = await createHomeySession(delegationToken, remoteUrl);
-    
-    // Step 5: Fetch temperature data
-    const tempData = await getHomeyDeviceData(
-      sessionToken,
-      remoteUrl,
-      process.env.HOMEY_DEVICE_ID_TEMP
-    );
-    
-    // Step 6: Fetch humidity data (may be same or different device)
-    let humidityData = tempData;
-    const humidityDeviceId = process.env.HOMEY_DEVICE_ID_HUMIDITY;
-    
-    if (humidityDeviceId && humidityDeviceId !== process.env.HOMEY_DEVICE_ID_TEMP) {
-      try {
-        humidityData = await getHomeyDeviceData(sessionToken, remoteUrl, humidityDeviceId);
-      } catch (error) {
-        console.warn('Could not fetch separate humidity sensor:', error.message);
-      }
-    }
-    
-    const responseData = {
-      temperature: tempData.temperature,
-      humidity: humidityData.humidity || tempData.humidity,
-      timestamp: new Date().toISOString(),
-      source: 'homey-oauth-cached'
-    };
-    
-    console.log('✅ Successfully fetched Homey sensor data:', responseData);
-    return responseData;
-    
-  } catch (error) {
-    console.error('❌ Homey OAuth fetch error:', error.message);
-    return null;
-  }
-}
-
-async function fetchHafjellWeatherData() {
-  console.log('📡 Fetching Hafjell weather data...');
-  
-  try {
-    const proxyUrl = 'https://api.allorigins.win/get?url=';
-    const targetUrl = encodeURIComponent('https://www.hafjell.no/en/snorapport-hafjell');
-    
-    const response = await fetch(proxyUrl + targetUrl, {
-      method: 'GET',
-      headers: { 'Accept': 'application/json' }
-    });
+    const response = await fetch(`https://api.fnugg.no/resort/${HAFJELL_RESORT_ID}`);
     
     if (!response.ok) {
-      throw new Error(`Hafjell fetch error: ${response.status}`);
+      throw new Error(`Fnugg API error: ${response.status}`);
     }
     
     const data = await response.json();
-    const htmlContent = data.contents;
+    console.log('✅ Fnugg API response received');
     
-    const weatherData = parseHafjellWeatherFromHTML(htmlContent);
-    console.log('✅ Hafjell weather data fetched');
-    return weatherData;
+    // Extract weather conditions
+    const conditions = data.conditions || {};
+    const topConditions = conditions.top || {};
+    const bottomConditions = conditions.bottom || {};
+    
+    // Extract lift status
+    const lifts = data.lifts || [];
+    const liftStatus = {};
+    
+    // Map Fnugg lift names to our dashboard IDs
+    const liftMappings = {
+      'backyardheisen': ['Backyardheisen'],
+      'hafjell360': ['Hafjell 360'],
+      'gondolen': ['Gondolen'],
+      'vidsynexpressen': ['Vidsynexpressen'],
+      'hafjellheis1': ['Hafjellheis 1', 'C. Hafjellheis 1'],
+      'hafjellheis2': ['Hafjellheis 2', 'E. Hafjellheis 2'],
+      'kjusheisen': ['Kjusheisen', 'D. Kjusheisen']
+    };
+    
+    lifts.forEach(lift => {
+      const liftName = lift.name || '';
+      for (const [dashboardId, possibleNames] of Object.entries(liftMappings)) {
+        if (possibleNames.some(name => liftName.includes(name))) {
+          // Fnugg uses true/false for open/closed
+          liftStatus[dashboardId] = lift.status?.isOpen ? 1 : 0;
+          break;
+        }
+      }
+    });
+    
+    // Ensure all lifts have a status
+    Object.keys(liftMappings).forEach(liftId => {
+      if (!(liftId in liftStatus)) {
+        liftStatus[liftId] = 0; // Default to closed
+      }
+    });
+    
+    const hafjellData = {
+      top: {
+        temp: topConditions.temperature?.value?.toString() || null,
+        cond: topConditions.weather?.description || 'Unknown',
+        wind: topConditions.wind?.speed?.toString() || null,
+        snow: topConditions.snow?.depth?.toString() || null,
+        snowDay: topConditions.snow?.lastDay?.toString() || null
+      },
+      bottom: {
+        temp: bottomConditions.temperature?.value?.toString() || null,
+        cond: bottomConditions.weather?.description || 'Unknown',
+        wind: bottomConditions.wind?.speed?.toString() || null,
+        snow: bottomConditions.snow?.depth?.toString() || null,
+        snowDay: bottomConditions.snow?.lastDay?.toString() || null
+      },
+      ts: Date.now()
+    };
+    
+    console.log('✅ Hafjell from Fnugg:', hafjellData);
+    console.log('✅ Lifts from Fnugg:', liftStatus);
+    
+    return { hafjellData, liftStatus };
   } catch (error) {
-    console.error('❌ Hafjell weather fetch error:', error.message);
-    return null;
+    console.error('❌ Fnugg API error:', error.message);
+    
+    // Return null values on error
+    return {
+      hafjellData: {
+        top: { temp: null, cond: 'Unknown', wind: null, snow: null, snowDay: null },
+        bottom: { temp: null, cond: 'Unknown', wind: null, snow: null, snowDay: null },
+        ts: Date.now()
+      },
+      liftStatus: {
+        backyardheisen: 0,
+        hafjell360: 0,
+        gondolen: 0,
+        vidsynexpressen: 0,
+        hafjellheis1: 0,
+        hafjellheis2: 0,
+        kjusheisen: 0
+      }
+    };
   }
 }
 
-async function fetchYrForecastData() {
-  console.log('📡 Fetching YR.no forecast data...');
+// ========== YR.NO FORECAST ==========
+
+async function getYrForecast() {
+  console.log('📡 Fetching YR.no forecast...');
   
   try {
-    // Mosetertoppen Skistadion coordinates (813m elevation)
-    const lat = 61.2430;
-    const lon = 10.4900;
-    
-    console.log(`Fetching forecast for Mosetertoppen Skistadion: ${lat}, ${lon}`);
-    
     const response = await fetch(
-      `https://api.met.no/weatherapi/locationforecast/2.0/compact?lat=${lat}&lon=${lon}`,
+      `https://api.met.no/weatherapi/locationforecast/2.0/compact?lat=${FORECAST_LAT}&lon=${FORECAST_LON}`,
       {
         headers: {
-          'User-Agent': 'WKWeatherDashboard/2.0 (wksnowdashboard.wvsailing.co.uk)'
+          'User-Agent': 'WKWeatherDashboard/2.0 ([email protected])'
         }
       }
     );
@@ -426,367 +226,182 @@ async function fetchYrForecastData() {
     }
     
     const data = await response.json();
-    console.log('✅ YR.no forecast data fetched for Mosetertoppen Skistadion');
-    return data;
-  } catch (error) {
-    console.error('❌ YR.no fetch error:', error.message);
-    return null;
-  }
-}
-
-async function fetchHafjellLiftStatus() {
-  console.log('📡 Fetching Hafjell lift status...');
-  
-  try {
-    const proxyUrl = 'https://api.allorigins.win/get?url=';
-    const targetUrl = encodeURIComponent('https://www.hafjell.no/en/snorapport-hafjell');
     
-    const response = await fetch(proxyUrl + targetUrl, {
-      method: 'GET',
-      headers: { 'Accept': 'application/json' }
+    // Keep only next 48 hours
+    const now = new Date();
+    const next48h = new Date(now.getTime() + 48 * 60 * 60 * 1000);
+    
+    const timeseries = data.properties?.timeseries || [];
+    const filteredTimeseries = timeseries.filter(item => {
+      const itemDate = new Date(item.time);
+      return itemDate >= now && itemDate <= next48h;
     });
     
-    if (!response.ok) {
-      throw new Error(`Hafjell lift fetch error: ${response.status}`);
-    }
+    console.log(`✅ YR.no: ${filteredTimeseries.length} forecast entries`);
     
-    const data = await response.json();
-    const htmlContent = data.contents;
-    
-    const liftStatus = parseHafjellLiftStatusFromHTML(htmlContent);
-    console.log('✅ Hafjell lift status fetched');
-    return liftStatus;
-  } catch (error) {
-    console.error('❌ Hafjell lift fetch error:', error.message);
-    return null;
-  }
-}
-
-// ========== HTML PARSING HELPERS ==========
-
-function parseHafjellWeatherFromHTML(htmlContent) {
-  console.log('Parsing weather data from Hafjell HTML...');
-  
-  // Initialize with '--' (no fallback values)
-  const weatherData = {
-    top: {
-      temperature: '--',
-      condition: 'Unknown',
-      wind: '--',
-      snow: '--',
-      snowLastDay: '--'
-    },
-    bottom: {
-      temperature: '--',
-      condition: 'Unknown',
-      wind: '--',
-      snow: '--',
-      snowLastDay: '--'
-    }
-  };
-  
-  try {
-    // Try DOM parsing with jsdom if available
-    try {
-      const jsdom = require('jsdom');
-      const { JSDOM } = jsdom;
-      const dom = new JSDOM(htmlContent);
-      const doc = dom.window.document;
-      const allText = doc.body.textContent.replace(/\s+/g, ' ').trim();
-      
-      console.log('✅ Using jsdom for DOM parsing');
-      
-      // Parse temperature and wind from text pattern
-      const tempWindPattern = /(-?\d{1,2})\s+(-?\d{1,2})\s+(\d+\.?\d*)m\/s\s+(\d+\.?\d*)m\/s/;
-      const match = allText.match(tempWindPattern);
-      
-      if (match) {
-        weatherData.top.temperature = match[1];
-        weatherData.bottom.temperature = match[2];
-        weatherData.top.wind = match[3];
-        weatherData.bottom.wind = match[4];
-        console.log(`✅ Temp/Wind: Top ${match[1]}°C ${match[3]}m/s, Bottom ${match[2]}°C ${match[4]}m/s`);
-      }
-      
-      // Parse weather condition
-      if (allText.includes('Mostly sunny')) {
-        weatherData.top.condition = 'Mostly sunny';
-        weatherData.bottom.condition = 'Mostly sunny';
-      } else if (allText.includes('Partly cloudy')) {
-        weatherData.top.condition = 'Partly cloudy';
-        weatherData.bottom.condition = 'Partly cloudy';
-      } else if (allText.includes('Cloudy')) {
-        weatherData.top.condition = 'Cloudy';
-        weatherData.bottom.condition = 'Cloudy';
-      } else if (allText.includes('Clear')) {
-        weatherData.top.condition = 'Clear';
-        weatherData.bottom.condition = 'Clear';
-      }
-      
-      // Method 1: Parse "Slopes" for snow depth
-      const pisteSectionSlopes = doc.querySelector('.w--conditions-piste');
-      if (pisteSectionSlopes) {
-        const topSpan = pisteSectionSlopes.querySelector('.w--top');
-        const bottomSpan = pisteSectionSlopes.querySelector('.w--bottom');
-        
-        if (topSpan && topSpan.textContent) {
-          const topValue = topSpan.textContent.replace(/[^\d]/g, '');
-          if (topValue) {
-            weatherData.top.snow = topValue;
-            console.log(`✅ Snow depth (Slopes) Top: ${topValue} cm`);
-          }
-        }
-        
-        if (bottomSpan && bottomSpan.textContent) {
-          const bottomValue = bottomSpan.textContent.replace(/[^\d]/g, '');
-          if (bottomValue) {
-            weatherData.bottom.snow = bottomValue;
-            console.log(`✅ Snow depth (Slopes) Bottom: ${bottomValue} cm`);
-          }
-        }
-      }
-      
-      // Method 2: Parse "Last day" for fresh snow
-      const lastDaySection = doc.querySelector('.w--conditions-lastday');
-      if (lastDaySection) {
-        const topSpan = lastDaySection.querySelector('.w--top');
-        const bottomSpan = lastDaySection.querySelector('.w--bottom');
-        
-        if (topSpan && topSpan.textContent) {
-          const topValue = topSpan.textContent.replace(/[^\d]/g, '');
-          if (topValue) {
-            weatherData.top.snowLastDay = topValue;
-            console.log(`✅ Fresh snow (Last day) Top: ${topValue} cm`);
-          }
-        }
-        
-        if (bottomSpan && bottomSpan.textContent) {
-          const bottomValue = bottomSpan.textContent.replace(/[^\d]/g, '');
-          if (bottomValue) {
-            weatherData.bottom.snowLastDay = bottomValue;
-            console.log(`✅ Fresh snow (Last day) Bottom: ${bottomValue} cm`);
-          }
-        }
-      }
-      
-      // Fallback: Try "Terrain" if Slopes not available
-      if (weatherData.top.snow === '--' || weatherData.bottom.snow === '--') {
-        const terrainSection = doc.querySelector('.w--conditions-terrain');
-        if (terrainSection) {
-          const topSpan = terrainSection.querySelector('.w--top');
-          const bottomSpan = terrainSection.querySelector('.w--bottom');
-          
-          if (topSpan && topSpan.textContent && weatherData.top.snow === '--') {
-            const topValue = topSpan.textContent.replace(/[^\d]/g, '');
-            if (topValue) {
-              weatherData.top.snow = topValue;
-              console.log(`✅ Snow depth (Terrain fallback) Top: ${topValue} cm`);
-            }
-          }
-          
-          if (bottomSpan && bottomSpan.textContent && weatherData.bottom.snow === '--') {
-            const bottomValue = bottomSpan.textContent.replace(/[^\d]/g, '');
-            if (bottomValue) {
-              weatherData.bottom.snow = bottomValue;
-              console.log(`✅ Snow depth (Terrain fallback) Bottom: ${bottomValue} cm`);
-            }
-          }
-        }
-      }
-      
-    } catch (jsdomError) {
-      console.log('⚠️ jsdom not available, using regex fallback:', jsdomError.message);
-      
-      // Fallback to regex parsing
-      const tempWindPattern = /(-?\d{1,2})\s+(-?\d{1,2})\s+(\d+\.?\d*)m\/s\s+(\d+\.?\d*)m\/s/;
-      const match = htmlContent.match(tempWindPattern);
-      
-      if (match) {
-        weatherData.top.temperature = match[1];
-        weatherData.bottom.temperature = match[2];
-        weatherData.top.wind = match[3];
-        weatherData.bottom.wind = match[4];
-        console.log(`✅ Temp/Wind (regex): Top ${match[1]}°C ${match[3]}m/s, Bottom ${match[2]}°C ${match[4]}m/s`);
-      }
-      
-      // Simple text-based condition detection
-      if (htmlContent.includes('Mostly sunny')) {
-        weatherData.top.condition = 'Mostly sunny';
-        weatherData.bottom.condition = 'Mostly sunny';
-      } else if (htmlContent.includes('Partly cloudy')) {
-        weatherData.top.condition = 'Partly cloudy';
-        weatherData.bottom.condition = 'Partly cloudy';
-      }
-    }
-    
-    console.log('📊 Final parsed Hafjell data:', weatherData);
-    return weatherData;
-    
-  } catch (error) {
-    console.error('❌ Hafjell parse error:', error);
     return {
-      top: { temperature: '--', condition: 'Error', wind: '--', snow: '--', snowLastDay: '--' },
-      bottom: { temperature: '--', condition: 'Error', wind: '--', snow: '--', snowLastDay: '--' }
+      data: {
+        properties: {
+          timeseries: filteredTimeseries
+        }
+      },
+      ts: Date.now()
     };
+  } catch (error) {
+    console.error('❌ YR.no error:', error.message);
+    return { data: { properties: { timeseries: [] } }, ts: Date.now() };
   }
 }
 
-function parseHafjellLiftStatusFromHTML(htmlContent) {
-  const currentHour = new Date().getHours();
-  const isOperatingHours = currentHour >= 9 && currentHour <= 16;
-  const isWeekend = [0, 6].includes(new Date().getDay());
-  
-  return {
-    'backyardheisen': isOperatingHours ? 'open' : 'closed',
-    'hafjell360': isOperatingHours && isWeekend ? 'open' : 'closed',
-    'gondolen': isOperatingHours ? 'open' : 'closed',
-    'vidsynexpressen': isOperatingHours ? 'open' : 'closed',
-    'hafjellheis1': isOperatingHours ? 'open' : 'closed',
-    'hafjellheis2': isOperatingHours && isWeekend ? 'open' : 'closed',
-    'kjusheisen': isOperatingHours && isWeekend ? 'open' : 'closed'
-  };
+// ========== TEMPERATURE HISTORY ==========
+
+async function updateTempHistory(client, outdoor, hafjellTop, hafjellBottom) {
+  try {
+    const historyKey = 'wk:weather:history';
+    
+    // Get existing history
+    let history = [];
+    const existingHistory = await client.get(historyKey);
+    if (existingHistory) {
+      history = JSON.parse(existingHistory);
+    }
+    
+    // Add new entry
+    history.push({
+      ts: Date.now(),
+      h: outdoor,
+      t: hafjellTop,
+      b: hafjellBottom
+    });
+    
+    // Keep last 48 entries (12 hours at 15-min intervals)
+    if (history.length > 48) {
+      history = history.slice(-48);
+    }
+    
+    // Save back to Redis
+    await client.set(historyKey, JSON.stringify(history), { EX: 86400 }); // 24 hour TTL
+    
+    console.log(`✅ Temperature history updated (${history.length} entries)`);
+    
+    return history;
+  } catch (error) {
+    console.error('❌ History update error:', error.message);
+    return [];
+  }
 }
 
 // ========== MAIN HANDLER ==========
 
-module.exports = async function handler(req, res) {
-  // Enable CORS
+export default async function handler(req, res) {
+  // CORS headers
   res.setHeader('Access-Control-Allow-Credentials', true);
   res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,POST');
+  res.setHeader('Access-Control-Allow-Methods', 'GET,POST,OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'X-Requested-With, Content-Type, Accept, Authorization');
 
   if (req.method === 'OPTIONS') {
     return res.status(200).json({ message: 'OK' });
   }
 
-  const { action } = req.query;
+  const action = req.query.action || 'get';
 
-  // ========== GET CACHED DATA ==========
-  if (req.method === 'GET' && action === 'get') {
-    let redis;
-    
-    try {
-      redis = await getRedisClient();
+  try {
+    const client = await getRedisClient();
+
+    // ========== GET CACHED DATA ==========
+    if (action === 'get') {
+      const cached = await client.get(CACHE_KEY);
       
-      const [homeyData, hafjellData, yrData, liftData, tempHistory] = await Promise.all([
-        redis.get('homey:sensors'),
-        redis.get('hafjell:weather'),
-        redis.get('yr:forecast'),
-        redis.get('hafjell:lifts'),
-        redis.get('temp:history')
+      if (cached) {
+        const data = JSON.parse(cached);
+        return res.status(200).json({
+          success: true,
+          data: data,
+          cached: true,
+          timestamp: new Date().toISOString()
+        });
+      } else {
+        return res.status(200).json({
+          success: false,
+          message: 'No cached data available',
+          cached: false
+        });
+      }
+    }
+
+    // ========== REFRESH CACHE ==========
+    if (action === 'refresh') {
+      // Check authorization
+      const authHeader = req.headers.authorization;
+      const expectedAuth = `Bearer ${process.env.CACHE_AUTH_TOKEN}`;
+      
+      if (!authHeader || authHeader !== expectedAuth) {
+        return res.status(401).json({
+          success: false,
+          error: 'Unauthorized'
+        });
+      }
+
+      console.log('🔄 Refreshing all data sources...');
+
+      // Fetch all data in parallel
+      const [homeyData, fnuggData, forecastData] = await Promise.all([
+        getHomeyData(),
+        getHafjellDataFromFnugg(),
+        getYrForecast()
       ]);
-      
-      await redis.quit();
-      
-      return res.status(200).json({
-        success: true,
-        cached: true,
-        data: {
-          homey: homeyData ? JSON.parse(homeyData) : null,
-          hafjell: hafjellData ? JSON.parse(hafjellData) : null,
-          forecast: yrData ? JSON.parse(yrData) : null,
-          lifts: liftData ? JSON.parse(liftData) : null,
-          tempHistory: tempHistory ? JSON.parse(tempHistory) : []
+
+      // Extract Hafjell and lift data from Fnugg
+      const { hafjellData, liftStatus } = fnuggData;
+
+      // Update temperature history
+      const tempHistory = await updateTempHistory(
+        client,
+        homeyData.temp ? parseFloat(homeyData.temp) : null,
+        hafjellData.top.temp ? parseFloat(hafjellData.top.temp) : null,
+        hafjellData.bottom.temp ? parseFloat(hafjellData.bottom.temp) : null
+      );
+
+      // Build optimized cache object
+      const cacheData = {
+        homey: homeyData,
+        hafjell: hafjellData,
+        forecast: forecastData,
+        lifts: {
+          lifts: liftStatus,
+          ts: Date.now()
         },
-        timestamp: new Date().toISOString()
-      });
-    } catch (error) {
-      console.error('❌ Cache retrieval error:', error);
-      if (redis) await redis.quit();
-      
-      return res.status(500).json({
-        success: false,
-        error: 'Cache retrieval failed',
-        message: error.message
-      });
-    }
-  }
+        tempHistory: tempHistory,
+        lastUpdate: new Date().toISOString()
+      };
 
-  // ========== REFRESH CACHE (EXTERNAL CRON) ==========
-  if (req.method === 'POST' && action === 'refresh') {
-    const authHeader = req.headers.authorization;
-    if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
-      console.error('❌ Unauthorized cache refresh attempt');
-      return res.status(401).json({ 
-        success: false,
-        error: 'Unauthorized' 
-      });
-    }
-    
-    let redis;
-    
-    try {
-      console.log('🔄 Starting optimized cache refresh...');
-      redis = await getRedisClient();
-      
-      const [rawHomeyData, rawHafjellData, rawYrData, rawLiftData] = await Promise.all([
-        fetchHomeyData(),
-        fetchHafjellWeatherData(),
-        fetchYrForecastData(),
-        fetchHafjellLiftStatus()
-      ]);
-      
-      const homeyData = rawHomeyData ? createOptimizedHomeyData(rawHomeyData) : null;
-      const hafjellData = rawHafjellData ? createOptimizedHafjellData(rawHafjellData) : null;
-      const yrData = rawYrData ? createOptimizedYrData(rawYrData) : null;
-      const liftData = rawLiftData ? createOptimizedLiftData(rawLiftData) : null;
-      
-      const TTL = 15 * 60; // 15 minutes
-      
-      const storePromises = [];
-      
-      if (homeyData) {
-        storePromises.push(redis.setEx('homey:sensors', TTL, JSON.stringify(homeyData)));
-      }
-      if (hafjellData) {
-        storePromises.push(redis.setEx('hafjell:weather', TTL, JSON.stringify(hafjellData)));
-      }
-      if (yrData) {
-        storePromises.push(redis.setEx('yr:forecast', TTL, JSON.stringify(yrData)));
-      }
-      if (liftData) {
-        storePromises.push(redis.setEx('hafjell:lifts', TTL, JSON.stringify(liftData)));
-      }
-      
-      await Promise.all(storePromises);
-      
-      if (homeyData || hafjellData) {
-        await storeTempHistory(
-          redis,
-          homeyData?.temp,
-          hafjellData?.top?.temp,
-          hafjellData?.bottom?.temp
-        );
-      }
-      
-      await redis.quit();
-      
-      console.log('✅ Optimized cache refresh complete');
-      
+      // Save to Redis
+      await client.set(CACHE_KEY, JSON.stringify(cacheData), { EX: CACHE_TTL });
+
+      console.log('✅ Cache refreshed successfully');
+
       return res.status(200).json({
         success: true,
-        refreshed: true,
-        optimized: true,
-        ttl_minutes: 15,
-        cached_items: ['homey:sensors', 'hafjell:weather', 'yr:forecast', 'hafjell:lifts', 'temp:history'],
+        message: 'Cache refreshed',
+        data: cacheData,
         timestamp: new Date().toISOString()
       });
-    } catch (error) {
-      console.error('❌ Cache refresh error:', error);
-      if (redis) await redis.quit();
-      
-      return res.status(500).json({
-        success: false,
-        error: 'Cache refresh failed',
-        message: error.message
-      });
     }
-  }
 
-  return res.status(400).json({
-    success: false,
-    error: 'Invalid request',
-    message: 'Use ?action=get (GET) or ?action=refresh (POST)'
-  });
-};
+    // Invalid action
+    return res.status(400).json({
+      success: false,
+      error: 'Invalid action',
+      message: 'Use action=get or action=refresh'
+    });
+
+  } catch (error) {
+    console.error('❌ Handler error:', error);
+    return res.status(500).json({
+      success: false,
+      error: error.message,
+      timestamp: new Date().toISOString()
+    });
+  }
+}
