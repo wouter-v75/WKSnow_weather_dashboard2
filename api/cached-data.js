@@ -47,9 +47,12 @@ async function getFnuggData() {
   if (!response.ok) throw new Error(`Fnugg API: ${response.status}`);
   
   const data = await response.json();
-  const resort = data.hits?.hits?.[0]?._source;
   
-  if (!resort) throw new Error('No resort data');
+  // Find Hafjell in the results (search returns all resorts, we need to filter)
+  const hafjellHit = data.hits?.hits?.find(hit => hit._source.id === HAFJELL_RESORT_ID);
+  const resort = hafjellHit?._source;
+  
+  if (!resort) throw new Error('Hafjell not found in API results');
   
   return {
     top: {
