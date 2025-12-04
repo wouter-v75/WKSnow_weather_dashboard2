@@ -1,49 +1,18 @@
 /**
- * Vercel Serverless Function: Weather Data Cache with Fnugg API
+ * Vercel Serverless Function: Weather Data Cache (NO REDIS - TEMPORARY)
  * 
- * FINAL VERSION - Uses api.fnugg.no for Hafjell data
- * 
- * Environment variables required in Vercel:
- * - REDIS_URL (Redis Cloud connection string)
- * - CACHE_AUTH_TOKEN (optional - for manual refresh endpoint)
+ * This version works WITHOUT Redis to unblock deployment
+ * Always fetches fresh data
  */
 
-const redis = require('redis');
-
-// Cache configuration
-const CACHE_KEY = 'wk:weather:cache';
-const CACHE_TTL = 900; // 15 minutes
 const HAFJELL_RESORT_ID = 12;
-
-let redisClient = null;
-
-async function getRedisClient() {
-  if (redisClient) return redisClient;
-  
-  if (!process.env.REDIS_URL) {
-    console.error('REDIS_URL not set');
-    return null;
-  }
-  
-  redisClient = redis.createClient({
-    url: process.env.REDIS_URL,
-    socket: { tls: true, rejectUnauthorized: false }
-  });
-  
-  redisClient.on('error', (err) => console.error('Redis Error:', err));
-  await redisClient.connect();
-  return redisClient;
-}
 
 // ========== FNUGG API ==========
 
 async function getFnuggData() {
-  console.log('📡 Fetching from Fnugg API (all resorts in one call)...');
-  
-  let hafjellHit = null;
+  console.log('📡 Fetching from Fnugg API...');
   
   try {
-    // API has 120 resorts total - request all with size parameter
     const url = 'https://api.fnugg.no/search?size=150';
     
     const response = await fetch(url, {
@@ -63,8 +32,7 @@ async function getFnuggData() {
     
     console.log(`✅ Received ${hits.length} resorts out of ${total} total`);
     
-    // Find Hafjell (ID=12)
-    hafjellHit = hits.find(hit => {
+    const hafjellHit = hits.find(hit => {
       const id = hit._source?.id;
       const name = hit._source?.name || '';
       return id === HAFJELL_RESORT_ID || 
@@ -76,35 +44,33 @@ async function getFnuggData() {
       throw new Error('Hafjell not found in API results');
     }
     
-    console.log(`✅ Found Hafjell: ${hafjellHit._source.name} (ID: ${hafjellHit._source.id})`);
+    const resort = hafjellHit._source;
+    console.log(`✅ Found Hafjell: ${resort.name} (ID: ${resort.id})`);
+    
+    return {
+      top: {
+        temperature: resort.conditions?.combined?.top?.temperature?.value?.toString() || '--',
+        condition: resort.conditions?.combined?.top?.condition_description || 'Loading...',
+        wind: resort.conditions?.combined?.top?.wind?.mps?.toString() || '0.0',
+        snow: resort.conditions?.combined?.top?.snow?.depth_terrain?.toString() || '0',
+        snowLastDay: resort.conditions?.combined?.top?.snow?.today?.toString() || '0',
+        snowWeek: resort.conditions?.combined?.top?.snow?.week?.toString() || '15'
+      },
+      bottom: {
+        temperature: resort.conditions?.combined?.bottom?.temperature?.value?.toString() || '--',
+        condition: resort.conditions?.combined?.bottom?.condition_description || 'Loading...',
+        wind: resort.conditions?.combined?.bottom?.wind?.mps?.toString() || '0.0',
+        snow: resort.conditions?.combined?.bottom?.snow?.depth_terrain?.toString() || '0',
+        snowLastDay: resort.conditions?.combined?.bottom?.snow?.today?.toString() || '0'
+      },
+      lifts: parseLiftStatus(resort.lifts),
+      timestamp: new Date().toISOString()
+    };
+    
   } catch (err) {
-    console.error(`❌ Error fetching Fnugg data:`, err.message);
+    console.error(`❌ Fnugg error:`, err.message);
     throw err;
   }
-
-  
-  const resort = hafjellHit._source;
-  console.log(`✅ Found Hafjell: ${resort.name} (ID: ${resort.id})`);
-  
-  return {
-    top: {
-      temperature: resort.conditions?.combined?.top?.temperature?.value?.toString() || '--',
-      condition: resort.conditions?.combined?.top?.condition_description || 'Loading...',
-      wind: resort.conditions?.combined?.top?.wind?.mps?.toString() || '0.0',
-      snow: resort.conditions?.combined?.top?.snow?.depth_terrain?.toString() || '0',
-      snowLastDay: resort.conditions?.combined?.top?.snow?.today?.toString() || '0',
-      snowWeek: resort.conditions?.combined?.top?.snow?.week?.toString() || '15'
-    },
-    bottom: {
-      temperature: resort.conditions?.combined?.bottom?.temperature?.value?.toString() || '--',
-      condition: resort.conditions?.combined?.bottom?.condition_description || 'Loading...',
-      wind: resort.conditions?.combined?.bottom?.wind?.mps?.toString() || '0.0',
-      snow: resort.conditions?.combined?.bottom?.snow?.depth_terrain?.toString() || '0',
-      snowLastDay: resort.conditions?.combined?.bottom?.snow?.today?.toString() || '0'
-    },
-    lifts: parseLiftStatus(resort.lifts),
-    timestamp: new Date().toISOString()
-  };
 }
 
 function parseLiftStatus(liftsData) {
@@ -159,56 +125,43 @@ async function getHomeyData() {
   console.log('📡 Fetching Homey...');
   
   try {
-    const baseUrl = process.env.VERCEL_URL 
-      ? `https://${process.env.VERCEL_URL}`
-      : 'http://localhost:3000';
+    const homeyUrl = process.env.HOMEY_API_URL || 'https://wksnowdashboard.wvsailing.co.uk/api/homey.js';
+    const response = await fetch(homeyUrl);
     
-    const response = await fetch(`${baseUrl}/api/homey`);
-    if (!response.ok) throw new Error(`Homey: ${response.status}`);
+    if (!response.ok) {
+      console.log('⚠️ Homey unavailable');
+      return { temperature: null, humidity: null };
+    }
     
     const data = await response.json();
     return {
-      temperature: data.temperature || null,
-      humidity: data.humidity || null,
+      temperature: data.temperature?.toString() || null,
+      humidity: data.humidity?.toString() || null,
       timestamp: new Date().toISOString()
     };
-  } catch (error) {
-    console.error('❌ Homey error:', error.message);
-    return {
-      temperature: null,
-      humidity: null,
-      timestamp: new Date().toISOString(),
-      error: error.message
-    };
+  } catch (err) {
+    console.log('⚠️ Homey error:', err.message);
+    return { temperature: null, humidity: null };
   }
 }
 
-// ========== CACHE REFRESH ==========
+// ========== FETCH ALL ==========
 
-async function refreshCache() {
-  console.log('🔄 Refreshing cache...');
+async function fetchAllData() {
+  console.log('🔄 Fetching all data sources...');
   
-  const [fnuggData, yrData, homeyData] = await Promise.all([
+  const [fnugg, yr, homey] = await Promise.all([
     getFnuggData(),
     getYrForecast(),
     getHomeyData()
   ]);
   
-  const cacheData = {
-    hafjell: fnuggData,
-    yr: yrData,
-    homey: homeyData,
-    lastUpdate: new Date().toISOString(),
-    nextUpdate: new Date(Date.now() + CACHE_TTL * 1000).toISOString()
+  return {
+    hafjell: fnugg,
+    yr: yr,
+    homey: homey,
+    lastUpdate: new Date().toISOString()
   };
-  
-  const client = await getRedisClient();
-  if (client) {
-    await client.setEx(CACHE_KEY, CACHE_TTL, JSON.stringify(cacheData));
-    console.log('✅ Cache updated');
-  }
-  
-  return cacheData;
 }
 
 // ========== HANDLER ==========
@@ -226,48 +179,26 @@ export default async function handler(req, res) {
   try {
     const { action, token } = req.query;
     
-    // Manual refresh endpoint - check both Bearer header and query token
+    // Check auth for manual refresh
     if (action === 'refresh') {
       const authHeader = req.headers.authorization;
       const expectedToken = process.env.CACHE_AUTH_TOKEN;
-      
-      // Extract token from Bearer header or query param
       const providedToken = authHeader?.replace('Bearer ', '') || token;
       
       if (expectedToken && providedToken !== expectedToken) {
-        console.log('❌ Invalid auth token');
         return res.status(401).json({ error: 'Invalid token' });
       }
-      
-      console.log('✅ Auth OK, refreshing cache...');
-      const data = await refreshCache();
-      return res.status(200).json({
-        success: true,
-        message: 'Cache refreshed',
-        data,
-        timestamp: new Date().toISOString()
-      });
     }
     
-    // Normal fetch
-    const client = await getRedisClient();
+    console.log('✅ Fetching fresh data...');
+    const data = await fetchAllData();
     
-    if (!client) {
-      console.log('⚠️ Redis unavailable, fetching fresh');
-      const data = await refreshCache();
-      return res.status(200).json(data);
-    }
-    
-    const cachedData = await client.get(CACHE_KEY);
-    
-    if (cachedData) {
-      console.log('✅ Serving from cache');
-      return res.status(200).json(JSON.parse(cachedData));
-    }
-    
-    console.log('⚠️ Cache miss, refreshing');
-    const data = await refreshCache();
-    return res.status(200).json(data);
+    return res.status(200).json({
+      success: true,
+      data,
+      cached: false,
+      note: 'Redis disabled - fetching fresh data'
+    });
     
   } catch (error) {
     console.error('❌ Error:', error);
