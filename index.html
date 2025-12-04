@@ -1138,6 +1138,31 @@
             sessionStorage.removeItem('wkWeatherDashboardAuth');
         });
 
+        // ========== MOBILE DEVICE DETECTION ==========
+        
+        function isMobileDevice() {
+            const userAgent = navigator.userAgent || navigator.vendor || window.opera;
+            const isIOS = /iPad|iPhone|iPod/.test(userAgent) && !window.MSStream;
+            const isAndroid = /android/i.test(userAgent);
+            const isMobileScreen = window.innerWidth <= 768;
+            return isIOS || isAndroid || isMobileScreen;
+        }
+        
+        function applyMobileLayout() {
+            const dashboard = document.querySelector('.dashboard');
+            const body = document.body;
+            
+            if (dashboard && isMobileDevice()) {
+                console.log('📱 Mobile device detected - applying mobile layout');
+                dashboard.classList.add('mobile-layout');
+                body.classList.add('is-mobile');
+            } else if (dashboard) {
+                console.log('🖥️ Desktop device detected - using desktop layout');
+                dashboard.classList.remove('mobile-layout');
+                body.classList.remove('is-mobile');
+            }
+        }
+
         // ========== CHART INITIALIZATION ==========
 
         function initTempChart() {
@@ -1545,6 +1570,7 @@
             
             updateTimestamp();
             initTempChart();
+            applyMobileLayout(); // Detect and apply mobile layout
             
             await refreshAllData();
             
@@ -1554,6 +1580,9 @@
             }, 5 * 60 * 1000);
             
             setInterval(updateTimestamp, 60 * 1000);
+            
+            // Re-check mobile layout on window resize
+            window.addEventListener('resize', applyMobileLayout);
             
             console.log('✅ Dashboard initialized successfully');
         }
