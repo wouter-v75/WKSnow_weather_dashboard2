@@ -72,21 +72,34 @@ async function getFnuggData() {
     const resort = hafjellHit._source;
     console.log(`✅ Found Hafjell: ${resort.name} (ID: ${resort.id})`);
     
+    // Extract complete snow data
+    const topSnow = resort.conditions?.combined?.top?.snow || {};
+    const bottomSnow = resort.conditions?.combined?.bottom?.snow || {};
+    
     return {
       top: {
         temperature: resort.conditions?.combined?.top?.temperature?.value?.toString() || '--',
         condition: resort.conditions?.combined?.top?.condition_description || 'Loading...',
         wind: resort.conditions?.combined?.top?.wind?.mps?.toString() || '0.0',
-        snow: resort.conditions?.combined?.top?.snow?.depth_terrain?.toString() || '0',
-        snowLastDay: resort.conditions?.combined?.top?.snow?.today?.toString() || '0',
-        snowWeek: resort.conditions?.combined?.top?.snow?.week?.toString() || '15'
+        snow: {
+          depth_terrain: topSnow.depth_terrain?.toString() || '0',
+          depth_slope: topSnow.depth_slope?.toString() || '0',
+          today: topSnow.today?.toString() || '0',
+          week: topSnow.week?.toString() || '0',
+          season: topSnow.season?.toString() || '0'
+        }
       },
       bottom: {
         temperature: resort.conditions?.combined?.bottom?.temperature?.value?.toString() || '--',
         condition: resort.conditions?.combined?.bottom?.condition_description || 'Loading...',
         wind: resort.conditions?.combined?.bottom?.wind?.mps?.toString() || '0.0',
-        snow: resort.conditions?.combined?.bottom?.snow?.depth_terrain?.toString() || '0',
-        snowLastDay: resort.conditions?.combined?.bottom?.snow?.today?.toString() || '0'
+        snow: {
+          depth_terrain: bottomSnow.depth_terrain?.toString() || '0',
+          depth_slope: bottomSnow.depth_slope?.toString() || '0',
+          today: bottomSnow.today?.toString() || '0',
+          week: bottomSnow.week?.toString() || '0',
+          season: bottomSnow.season?.toString() || '0'
+        }
       },
       lifts: parseLiftStatus(resort.lifts),
       timestamp: new Date().toISOString()
