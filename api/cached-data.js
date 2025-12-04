@@ -38,70 +38,50 @@ async function getRedisClient() {
 // ========== FNUGG API ==========
 
 async function getFnuggData() {
-  console.log('📡 Fetching from Fnugg API with pagination...');
+  console.log('📡 Fetching from Fnugg API (all resorts in one call)...');
   
-  // Fnugg API returns 20 results per page, ~120 total resorts
-  // We need to paginate through results to find Hafjell (ID=12)
-  let page = 0;
   let hafjellHit = null;
-  const maxPages = 10; // Safety limit
   
-  while (!hafjellHit && page < maxPages) {
-    try {
-      const offset = page * 20;
-      const url = `https://api.fnugg.no/search?from=${offset}&size=20`;
-      
-      console.log(`📄 Fetching page ${page + 1} (offset ${offset})...`);
-      
-      const response = await fetch(url, {
-        headers: { 
-          'User-Agent': 'WKWeatherDashboard/1.0',
-          'Accept': 'application/json'
-        }
-      });
-      
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+  try {
+    // API returns all 56 resorts in a single call by default
+    const url = 'https://api.fnugg.no/search';
+    
+    const response = await fetch(url, {
+      headers: { 
+        'User-Agent': 'WKWeatherDashboard/1.0',
+        'Accept': 'application/json'
       }
-      
-      const data = await response.json();
-      const hits = data.hits?.hits || [];
-      const total = data.hits?.total || 0;
-      
-      console.log(`Page ${page + 1}: ${hits.length} resorts (Total: ${total})`);
-      
-      // Look for Hafjell in this page
-      hafjellHit = hits.find(hit => {
-        const id = hit._source?.id;
-        const name = hit._source?.name || '';
-        return id === HAFJELL_RESORT_ID || 
-               id === '12' || 
-               name.toLowerCase().includes('hafjell');
-      });
-      
-      if (hafjellHit) {
-        console.log(`✅ Found Hafjell on page ${page + 1}!`);
-        break;
-      }
-      
-      // Move to next page
-      page++;
-      
-      // If we got fewer results than requested, we've reached the end
-      if (hits.length < 20) {
-        console.log('📭 Reached end of results');
-        break;
-      }
-      
-    } catch (err) {
-      console.error(`❌ Error fetching page ${page + 1}:`, err.message);
-      throw err;
+    });
+    
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
     }
+    
+    const data = await response.json();
+    const hits = data.hits?.hits || [];
+    const total = data.hits?.total || 0;
+    
+    console.log(`✅ Received ${hits.length} resorts (Total: ${total})`);
+    
+    // Find Hafjell (ID=12)
+    hafjellHit = hits.find(hit => {
+      const id = hit._source?.id;
+      const name = hit._source?.name || '';
+      return id === HAFJELL_RESORT_ID || 
+             id === '12' || 
+             name.toLowerCase().includes('hafjell');
+    });
+    
+    if (!hafjellHit) {
+      throw new Error('Hafjell not found in API results');
+    }
+    
+    console.log(`✅ Found Hafjell: ${hafjellHit._source.name} (ID: ${hafjellHit._source.id})`);
+  } catch (err) {
+    console.error(`❌ Error fetching Fnugg data:`, err.message);
+    throw err;
   }
-  
-  if (!hafjellHit) {
-    throw new Error(`Hafjell not found after checking ${page} pages`);
-  }
+
   
   const resort = hafjellHit._source;
   console.log(`✅ Found Hafjell: ${resort.name} (ID: ${resort.id})`);
