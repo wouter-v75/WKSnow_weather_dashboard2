@@ -394,6 +394,14 @@
             transition: all 0.3s ease;
         }
 
+        .weather-wind {
+            font-size: 0.9rem;
+            font-weight: normal;
+            color: white;
+            text-shadow: 2px 2px 6px rgba(0,0,0,0.9);
+            opacity: 0.9;
+        }
+
         .weather-desc {
             font-size: 0.7rem;
             color: rgba(255, 255, 255, 0.8);
@@ -531,8 +539,8 @@
         }
 
         .hafjell-stations {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
+            display: flex;
+            flex-direction: column;
             gap: 10px;
             flex: 0 0 auto;
             margin-bottom: 8px;
@@ -930,16 +938,15 @@
                         <h3>🏔️ Top (1059m)</h3>
                         <div class="weather-main">
                             <div class="weather-icon" id="top-icon">☀️</div>
-                            <div>
-                                <div class="weather-temp" id="top-temp">--°C</div>
+                            <div style="flex: 1;">
+                                <div style="display: flex; align-items: center; gap: 10px;">
+                                    <div class="weather-temp" id="top-temp">--°C</div>
+                                    <div class="weather-wind" id="top-wind">-- m/s</div>
+                                </div>
                                 <div class="weather-desc" id="top-desc">Loading...</div>
                             </div>
                         </div>
                         <div class="weather-details" style="grid-template-columns: 1fr 1fr; gap: 4px;">
-                            <div class="detail-item">
-                                <div class="detail-value" id="top-wind">-- m/s</div>
-                                <div class="detail-label">Wind</div>
-                            </div>
                             <div class="detail-item">
                                 <div class="detail-value" id="top-snow-terrain">-- cm</div>
                                 <div class="detail-label">Snow Terrain</div>
@@ -952,7 +959,7 @@
                                 <div class="detail-value" id="top-snow-day">-- cm</div>
                                 <div class="detail-label">Last Day</div>
                             </div>
-                            <div class="detail-item" style="grid-column: 1 / -1;">
+                            <div class="detail-item">
                                 <div class="detail-value" id="top-snow-week">-- cm</div>
                                 <div class="detail-label">Last Week</div>
                             </div>
@@ -964,16 +971,15 @@
                         <h3>🏞️ Bottom (195m)</h3>
                         <div class="weather-main">
                             <div class="weather-icon" id="bottom-icon">☀️</div>
-                            <div>
-                                <div class="weather-temp" id="bottom-temp">--°C</div>
+                            <div style="flex: 1;">
+                                <div style="display: flex; align-items: center; gap: 10px;">
+                                    <div class="weather-temp" id="bottom-temp">--°C</div>
+                                    <div class="weather-wind" id="bottom-wind">-- m/s</div>
+                                </div>
                                 <div class="weather-desc" id="bottom-desc">Loading...</div>
                             </div>
                         </div>
                         <div class="weather-details" style="grid-template-columns: 1fr 1fr; gap: 4px;">
-                            <div class="detail-item">
-                                <div class="detail-value" id="bottom-wind">-- m/s</div>
-                                <div class="detail-label">Wind</div>
-                            </div>
                             <div class="detail-item">
                                 <div class="detail-value" id="bottom-snow-terrain">-- cm</div>
                                 <div class="detail-label">Snow Terrain</div>
@@ -986,7 +992,7 @@
                                 <div class="detail-value" id="bottom-snow-day">-- cm</div>
                                 <div class="detail-label">Last Day</div>
                             </div>
-                            <div class="detail-item" style="grid-column: 1 / -1;">
+                            <div class="detail-item">
                                 <div class="detail-value" id="bottom-snow-week">-- cm</div>
                                 <div class="detail-label">Last Week</div>
                             </div>
