@@ -4,10 +4,22 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="description" content="WK Snow Weather Dashboard - Real-time weather data from Homey Pro, Hafjell stations, and YR.no forecast">
+    <meta name="keywords" content="weather, dashboard, homey pro, hafjell, yr.no, snow, glassmorphism">
+    <meta name="author" content="WK Weather Dashboard">
+    
+    <!-- PWA Meta Tags -->
+    <meta name="theme-color" content="#667eea">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="WK Weather">
+    
     <title>WK Snow Weather Dashboard</title>
     
     <!-- Chart.js CDN -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+    
+    <!-- Load external config if available (NOT committed to GitHub) -->
+    <script src="config.js" onerror="console.log('External config not found, using defaults')"></script>
     
     <style>
         /* ========== LOGIN STYLES ========== */
@@ -241,6 +253,12 @@
             padding-bottom: 6px;
             border-bottom: 1px solid rgba(255, 255, 255, 0.2);
             flex-shrink: 0;
+        }
+
+        .card-icon {
+            font-size: 1.2rem;
+            margin-right: 8px;
+            text-shadow: 0 0 10px rgba(255, 255, 255, 0.5);
         }
 
         .card-title {
@@ -605,41 +623,76 @@
             pointer-events: none;
         }
 
-        /* ========== SWIX TEMPERATURE COLOR CODING ========== */
+        .sensor-item:hover,
+        .detail-item:hover {
+            background: rgba(255, 255, 255, 0.35);
+            transform: translateY(-1px);
+            transition: all 0.3s ease;
+        }
+
+        .error-message {
+            color: rgba(255, 255, 255, 0.7);
+            font-size: 0.7rem;
+            text-align: center;
+            padding: 8px;
+            background: rgba(231, 76, 60, 0.2);
+            border: 1px solid rgba(231, 76, 60, 0.3);
+            border-radius: 8px;
+            margin: 4px 0;
+            text-shadow: 1px 1px 2px rgba(0,0,0,0.6);
+        }
+
+        /* ========== SWIX TEMPERATURE COLOR CODING (OFFICIAL RANGES) ========== */
         .swix-temp-yellow {
-            color: #FFD700 !important;
+            color: #FFD700 !important; /* Yellow: 0°C to +10°C (32°F to 50°F) - Hot conditions */
             text-shadow: 2px 2px 6px rgba(0,0,0,0.9) !important;
             font-weight: bold !important;
         }
 
         .swix-temp-red {
-            color: #FF0000 !important;
+            color: #FF0000 !important; /* Red: -4°C to +4°C (25°F to 39°F) - Warm conditions */
             text-shadow: 2px 2px 6px rgba(0,0,0,0.9) !important;
             font-weight: bold !important;
         }
 
         .swix-temp-violet {
-            color: #8A2BE2 !important;
+            color: #8A2BE2 !important; /* Violet: -2°C to -8°C (28°F to 18°F) - Cool conditions */
             text-shadow: 2px 2px 6px rgba(0,0,0,0.9) !important;
             font-weight: bold !important;
         }
 
         .swix-temp-blue {
-            color: #0066FF !important;
+            color: #0066FF !important; /* Blue: -6°C to -12°C (21°F to 10°F) - Cold conditions */
             text-shadow: 2px 2px 6px rgba(0,0,0,0.9) !important;
             font-weight: bold !important;
         }
 
         .swix-temp-green {
-            color: #00FFAA !important;
+            color: #00FFAA !important; /* Green/Turquoise: -10°C to -18°C (14°F to 0°F) - Very cold */
             text-shadow: 2px 2px 6px rgba(0,0,0,0.9) !important;
             font-weight: bold !important;
         }
 
         .swix-temp-polar {
-            color: #FFFFFF !important;
+            color: #FFFFFF !important; /* White: Below -18°C (Below 0°F) - Polar conditions */
             text-shadow: 2px 2px 6px rgba(0,0,0,0.9) !important;
             font-weight: bold !important;
+        }
+
+        @media (max-width: 1024px) and (orientation: landscape) {
+            .dashboard {
+                grid-template-columns: repeat(4, 1fr);
+                gap: 6px;
+                height: calc(100vh - 12px);
+            }
+            
+            .card {
+                padding: 10px;
+            }
+            
+            .header h1 {
+                font-size: 1.3rem;
+            }
         }
 
         @media (max-width: 768px) {
@@ -662,6 +715,96 @@
             }
         }
 
+/* ========== MOBILE LAYOUT (iPhone & Android) ========== */
+        
+        .dashboard.mobile-layout {
+            display: flex !important;
+            flex-direction: column !important;
+            gap: 12px !important;
+            height: auto !important;
+            overflow-y: auto !important;
+            padding-bottom: 80px;
+        }
+        
+        .dashboard.mobile-layout .header {
+            order: -1;
+        }
+        
+        .dashboard.mobile-layout .card {
+            width: 100% !important;
+            min-height: auto !important;
+            max-height: none !important;
+        }
+        
+        .dashboard.mobile-layout .forecast-column {
+            flex-direction: column !important;
+            width: 100% !important;
+        }
+        
+        .dashboard.mobile-layout .forecast-card {
+            width: 100% !important;
+        }
+        
+        body.is-mobile.dashboard-mode {
+            overflow-y: auto !important;
+            height: auto !important;
+            min-height: 100vh;
+        }
+        
+        body.is-mobile .sensor-grid {
+            grid-template-columns: 1fr 1fr;
+        }
+        
+        body.is-mobile .hafjell-stations {
+            grid-template-columns: 1fr;
+            gap: 15px;
+        }
+        
+        body.is-mobile .station-section {
+            padding: 10px 0;
+        }
+        
+        body.is-mobile .webcam-section {
+            min-height: 250px;
+        }
+        
+        body.is-mobile .lifts-grid {
+            grid-template-columns: 1fr;
+        }
+        
+        body.is-mobile .lift-item {
+            padding: 10px 12px;
+        }
+        
+        body.is-mobile .header h1 {
+            font-size: 1.3rem;
+        }
+        
+        body.is-mobile .header .timestamp {
+            font-size: 0.7rem;
+            bottom: auto;
+            top: 10px;
+            left: 10px;
+            padding: 6px 10px;
+        }
+        
+        body.is-mobile .refresh-btn {
+            bottom: 20px;
+            right: 20px;
+            padding: 12px 16px;
+            font-size: 0.8rem;
+            z-index: 1002;
+        }
+        
+        body.is-mobile .logout-btn {
+            top: 10px;
+            right: 10px;
+            padding: 8px 14px;
+            font-size: 0.75rem;
+        }
+
+
+        
         @keyframes aurora-glow {
             0%, 100% { opacity: 0.8; }
             50% { opacity: 1; }
@@ -736,7 +879,7 @@
             <div class="card" id="lifts-card">
                 <div class="card-header">
                     <div class="card-title">
-                        Hafjell Lifts
+                        Hafjell Lifts (Real-Time)
                         <span class="status-indicator status-offline" id="lifts-status"></span>
                     </div>
                 </div>
@@ -844,6 +987,8 @@
                             alt="Hafjell Webcam View" 
                             class="webcam-image"
                             id="hafjell-webcam"
+                            onload="console.log('Hafjell webcam loaded successfully')"
+                            onerror="console.log('Hafjell webcam failed to load'); this.style.display='none'; this.nextElementSibling.style.display='block';"
                         />
                         <div class="webcam-error" style="display: none;">
                             <span>📷 Webcam unavailable</span>
@@ -858,7 +1003,7 @@
                 <div class="card forecast-card" id="forecast-card">
                     <div class="card-header">
                         <div class="card-title">
-                            Mosetertoppen Today
+                            Mosetertoppen Today (YR.no)
                             <span class="status-indicator status-offline" id="forecast-status"></span>
                         </div>
                     </div>
@@ -873,7 +1018,7 @@
                 <div class="card forecast-card" id="tomorrow-card">
                     <div class="card-header">
                         <div class="card-title">
-                            Tomorrow (3h intervals)
+                            Tomorrow's Forecast
                             <span class="status-indicator status-offline" id="tomorrow-status"></span>
                         </div>
                     </div>
@@ -889,6 +1034,7 @@
         <button class="refresh-btn" onclick="refreshAllData()">🔄 Refresh</button>
     </div>
 
+
     <script>
         // ========== AUTHENTICATION ==========
         
@@ -897,7 +1043,6 @@
             password: 'winter2025'
         };
 
-        // Temperature history storage
         let temperatureHistory = {
             labels: [],
             outdoor: [],
@@ -920,19 +1065,21 @@
             return 'swix-temp-polar';
         }
 
-        function applySwixColor(elementId, temperature) {
+        function applySwixColorToElement(elementId, temperature) {
             const element = document.getElementById(elementId);
             if (!element || !temperature) return;
+            
+            const temp = parseFloat(temperature);
+            if (isNaN(temp)) return;
             
             const swixClasses = ['swix-temp-yellow', 'swix-temp-red', 'swix-temp-violet', 'swix-temp-blue', 'swix-temp-green', 'swix-temp-polar'];
             swixClasses.forEach(cls => element.classList.remove(cls));
             
-            const swixClass = getSwixColorClass(temperature);
+            const swixClass = getSwixColorClass(temp);
             if (swixClass) element.classList.add(swixClass);
         }
 
         function applyAllSwixColors() {
-            // Apply to all forecast temps
             document.querySelectorAll('.forecast-temp').forEach(element => {
                 const tempMatch = element.textContent.match(/-?\d+\.?\d*/);
                 if (tempMatch) {
@@ -991,7 +1138,7 @@
             sessionStorage.removeItem('wkWeatherDashboardAuth');
         });
 
-        // ========== CHART FUNCTIONS ==========
+        // ========== CHART INITIALIZATION ==========
 
         function initTempChart() {
             const ctx = document.getElementById('tempChart').getContext('2d');
@@ -1065,29 +1212,6 @@
                     }
                 }
             });
-        }
-
-        function updateTempChartFromHistory(historyArray) {
-            if (!tempChart || !historyArray || historyArray.length === 0) return;
-            
-            temperatureHistory.labels = [];
-            temperatureHistory.outdoor = [];
-            temperatureHistory.hafjellTop = [];
-            temperatureHistory.hafjellBottom = [];
-            
-            historyArray.forEach(entry => {
-                const date = new Date(entry.ts);
-                temperatureHistory.labels.push(date.toLocaleTimeString('en-NO', {hour: '2-digit', minute: '2-digit'}));
-                temperatureHistory.outdoor.push(entry.h);
-                temperatureHistory.hafjellTop.push(entry.t);
-                temperatureHistory.hafjellBottom.push(entry.b);
-            });
-            
-            tempChart.data.labels = temperatureHistory.labels;
-            tempChart.data.datasets[0].data = temperatureHistory.outdoor;
-            tempChart.data.datasets[1].data = temperatureHistory.hafjellTop;
-            tempChart.data.datasets[2].data = temperatureHistory.hafjellBottom;
-            tempChart.update('none');
         }
 
         function updateTimestamp() {
@@ -1165,199 +1289,24 @@
             }
         }
 
-        // ========== MAIN REFRESH FUNCTION (CACHE INTEGRATED) ==========
+        // ========== FORECAST DISPLAY FUNCTIONS ==========
 
-        async function refreshAllData() {
-    const refreshBtn = document.querySelector('.refresh-btn');
-    if (refreshBtn) {
-        refreshBtn.disabled = true;
-        refreshBtn.textContent = '🔄 Refreshing...';
-    }
-    
-    document.querySelectorAll('.card').forEach(card => card.classList.add('loading'));
-    
-    try {
-        console.log('📦 Loading from cache API...');
-        
-        // Fetch from new cache endpoint
-        const response = await fetch('/api/cached-data.js');
-        
-        if (!response.ok) {
-            throw new Error(`API error: ${response.status}`);
-        }
-        
-        const result = await response.json();
-        console.log('✅ Cache response:', result);
-        
-        if (!result.success || !result.data) {
-            throw new Error('Invalid cache response');
-        }
-        
-        const data = result.data;
-        
-        // ========== UPDATE HOMEY SENSORS ==========
-        if (data.homey) {
-            const temp = data.homey.temperature;
-            const humidity = data.homey.humidity;
-            
-            if (temp) {
-                document.getElementById('outdoor-temp').textContent = temp + '°C';
-                applySwixColor('outdoor-temp', temp);
-            } else {
-                document.getElementById('outdoor-temp').textContent = '--°C';
-            }
-            
-            if (humidity) {
-                document.getElementById('outdoor-humidity').textContent = humidity + '%';
-            } else {
-                document.getElementById('outdoor-humidity').textContent = '--%';
-            }
-            
-            document.getElementById('sensor-status').className = 'status-indicator status-online';
-            console.log('✅ Homey sensors updated');
-        }
-        
-        // ========== UPDATE HAFJELL STATIONS ==========
-        if (data.hafjell) {
-            const h = data.hafjell;
-            
-            // Top station
-            document.getElementById('top-temp').textContent = h.top.temperature + '°C';
-            document.getElementById('top-desc').textContent = h.top.condition;
-            document.getElementById('top-wind').textContent = h.top.wind + ' m/s';
-            document.getElementById('top-snow').textContent = h.top.snow + ' cm';
-            document.getElementById('top-snow-day').textContent = h.top.snowLastDay + ' cm';
-            document.getElementById('top-icon').textContent = getWeatherIconFromCondition(h.top.condition);
-            applySwixColor('top-temp', h.top.temperature);
-            
-            // Bottom station
-            document.getElementById('bottom-temp').textContent = h.bottom.temperature + '°C';
-            document.getElementById('bottom-desc').textContent = h.bottom.condition;
-            document.getElementById('bottom-wind').textContent = h.bottom.wind + ' m/s';
-            document.getElementById('bottom-snow').textContent = h.bottom.snow + ' cm';
-            document.getElementById('bottom-snow-day').textContent = h.bottom.snowLastDay + ' cm';
-            document.getElementById('bottom-icon').textContent = getWeatherIconFromCondition(h.bottom.condition);
-            applySwixColor('bottom-temp', h.bottom.temperature);
-            
-            document.getElementById('hafjell-status').className = 'status-indicator status-online';
-            
-            // Update temperature chart
-            updateTempChart(
-                data.homey?.temperature, 
-                h.top.temperature, 
-                h.bottom.temperature
-            );
-            
-            console.log('✅ Hafjell stations updated');
-        }
-        
-        // ========== UPDATE LIFTS ==========
-        if (data.hafjell && data.hafjell.lifts) {
-            const lifts = data.hafjell.lifts;
-            
-            Object.keys(lifts).forEach(liftKey => {
-                const liftElement = document.getElementById(`lift-${liftKey}`);
-                if (liftElement) {
-                    const status = lifts[liftKey];
-                    liftElement.textContent = status.toUpperCase();
-                    liftElement.className = `lift-status ${status}`;
-                }
-            });
-            
-            document.getElementById('lifts-status').className = 'status-indicator status-online';
-            console.log('✅ Lifts updated');
-        }
-        
-        // ========== UPDATE YR.NO FORECAST ==========
-        if (data.yr && data.yr.timeseries) {
-            displayForecast({ properties: { timeseries: data.yr.timeseries } });
-            displayTomorrowForecast({ properties: { timeseries: data.yr.timeseries } });
-            
-            document.getElementById('forecast-status').className = 'status-indicator status-online';
-            document.getElementById('tomorrow-status').className = 'status-indicator status-online';
-            console.log('✅ Forecast updated');
-        }
-        
-        // ========== UPDATE TEMPERATURE HISTORY CHART ==========
-        if (data.tempHistory && data.tempHistory.length > 0) {
-            // Clear existing history
-            temperatureHistory.labels = [];
-            temperatureHistory.outdoor = [];
-            temperatureHistory.hafjellTop = [];
-            temperatureHistory.hafjellBottom = [];
-            
-            // Load history from cache
-            data.tempHistory.forEach(entry => {
-                const date = new Date(entry.ts);
-                const timeLabel = date.toLocaleTimeString('en-NO', {hour: '2-digit', minute: '2-digit'});
-                
-                temperatureHistory.labels.push(timeLabel);
-                temperatureHistory.outdoor.push(entry.h);
-                temperatureHistory.hafjellTop.push(entry.t);
-                temperatureHistory.hafjellBottom.push(entry.b);
-            });
-            
-            // Update chart
-            if (tempChart) {
-                tempChart.data.labels = temperatureHistory.labels;
-                tempChart.data.datasets[0].data = temperatureHistory.outdoor;
-                tempChart.data.datasets[1].data = temperatureHistory.hafjellTop;
-                tempChart.data.datasets[2].data = temperatureHistory.hafjellBottom;
-                tempChart.update('none');
-            }
-            
-            console.log(`✅ Temperature history: ${data.tempHistory.length} points`);
-        }
-        
-        // ========== REFRESH WEBCAM ==========
-        refreshWebcam();
-        
-        // ========== UPDATE TIMESTAMP ==========
-        updateTimestamp();
-        
-        // ========== APPLY SWIX COLORS ==========
-        setTimeout(() => applyAllSwixColors(), 100);
-        
-        console.log('✅ Dashboard fully updated from cache!');
-        
-    } catch (error) {
-        console.error('❌ Error refreshing dashboard:', error);
-        
-        // Show error in UI
-        document.getElementById('sensor-status').className = 'status-indicator status-offline';
-        document.getElementById('hafjell-status').className = 'status-indicator status-offline';
-        document.getElementById('lifts-status').className = 'status-indicator status-offline';
-        document.getElementById('forecast-status').className = 'status-indicator status-offline';
-        document.getElementById('tomorrow-status').className = 'status-indicator status-offline';
-        
-    } finally {
-        document.querySelectorAll('.card').forEach(card => card.classList.remove('loading'));
-        
-        if (refreshBtn) {
-            refreshBtn.disabled = false;
-            refreshBtn.textContent = '🔄 Refresh';
-        }
-    }
-}
-
-
-        function updateForecastDisplay(forecastData) {
+        function displayForecast(forecastData) {
             const forecastContent = document.getElementById('forecast-content');
-            const tomorrowContent = document.getElementById('tomorrow-content');
-            
             forecastContent.innerHTML = '';
-            tomorrowContent.innerHTML = '';
             
             const now = new Date();
             const today = now.toDateString();
-            const tomorrow = new Date(now.getTime() + 24 * 60 * 60 * 1000);
-            const tomorrowDateString = tomorrow.toDateString();
             
-            // Today's forecast
             const todayForecasts = forecastData.properties.timeseries.filter(item => {
                 const itemDate = new Date(item.time);
                 return itemDate.toDateString() === today && itemDate > now;
             }).slice(0, 6);
+            
+            if (todayForecasts.length === 0) {
+                forecastContent.innerHTML = '<div style="color: rgba(255,255,255,0.7); text-align: center;">No forecasts available</div>';
+                return;
+            }
             
             todayForecasts.forEach(item => {
                 const time = new Date(item.time);
@@ -1380,18 +1329,29 @@
                 `;
                 forecastContent.appendChild(forecastItem);
             });
+        }
+
+        function displayTomorrowForecast(forecastData) {
+            const tomorrowContent = document.getElementById('tomorrow-content');
+            tomorrowContent.innerHTML = '';
             
-            document.getElementById('forecast-status').className = 'status-indicator status-online';
+            const tomorrow = new Date();
+            tomorrow.setDate(tomorrow.getDate() + 1);
+            const tomorrowDateString = tomorrow.toDateString();
             
-            // Tomorrow's forecast (06:00-18:00 in 3-hour intervals)
             const tomorrowForecasts = forecastData.properties.timeseries.filter(item => {
                 const itemDate = new Date(item.time);
                 const itemHour = itemDate.getHours();
                 return itemDate.toDateString() === tomorrowDateString && 
                        itemHour >= 6 && 
                        itemHour <= 18 &&
-                       itemHour % 3 === 0;  // 06:00, 09:00, 12:00, 15:00, 18:00
+                       itemHour % 3 === 0;
             });
+            
+            if (tomorrowForecasts.length === 0) {
+                tomorrowContent.innerHTML = '<div style="color: rgba(255,255,255,0.7); text-align: center;">No forecasts available</div>';
+                return;
+            }
             
             tomorrowForecasts.forEach(item => {
                 const time = new Date(item.time);
@@ -1414,21 +1374,180 @@
                 `;
                 tomorrowContent.appendChild(forecastItem);
             });
+        }
+
+        // ========== MAIN REFRESH FUNCTION (CACHE INTEGRATED) ==========
+
+        async function refreshAllData() {
+            const refreshBtn = document.querySelector('.refresh-btn');
+            if (refreshBtn) {
+                refreshBtn.disabled = true;
+                refreshBtn.textContent = '🔄 Refreshing...';
+            }
             
-            document.getElementById('tomorrow-status').className = 'status-indicator status-online';
+            document.querySelectorAll('.card').forEach(card => card.classList.add('loading'));
+            
+            try {
+                console.log('📦 Loading from cache API...');
+                
+                const response = await fetch('/api/cached-data.js');
+                
+                if (!response.ok) {
+                    throw new Error(`API error: ${response.status}`);
+                }
+                
+                const result = await response.json();
+                console.log('✅ Cache response:', result);
+                
+                if (!result.success || !result.data) {
+                    throw new Error('Invalid cache response');
+                }
+                
+                const data = result.data;
+                
+                // ========== UPDATE HOMEY SENSORS ==========
+                if (data.homey) {
+                    const temp = data.homey.temperature;
+                    const humidity = data.homey.humidity;
+                    
+                    if (temp) {
+                        document.getElementById('outdoor-temp').textContent = temp + '°C';
+                        setTimeout(() => applySwixColorToElement('outdoor-temp', temp), 50);
+                    } else {
+                        document.getElementById('outdoor-temp').textContent = '--°C';
+                    }
+                    
+                    if (humidity) {
+                        document.getElementById('outdoor-humidity').textContent = humidity + '%';
+                    } else {
+                        document.getElementById('outdoor-humidity').textContent = '--%';
+                    }
+                    
+                    document.getElementById('sensor-status').className = 'status-indicator status-online';
+                    console.log('✅ Homey sensors updated');
+                }
+                
+                // ========== UPDATE HAFJELL STATIONS ==========
+                if (data.hafjell) {
+                    const h = data.hafjell;
+                    
+                    // Top station
+                    document.getElementById('top-temp').textContent = h.top.temperature + '°C';
+                    document.getElementById('top-desc').textContent = h.top.condition;
+                    document.getElementById('top-wind').textContent = h.top.wind + ' m/s';
+                    document.getElementById('top-snow').textContent = h.top.snow + ' cm';
+                    document.getElementById('top-snow-day').textContent = h.top.snowLastDay + ' cm';
+                    document.getElementById('top-icon').textContent = getWeatherIconFromCondition(h.top.condition);
+                    setTimeout(() => applySwixColorToElement('top-temp', h.top.temperature), 50);
+                    
+                    // Bottom station
+                    document.getElementById('bottom-temp').textContent = h.bottom.temperature + '°C';
+                    document.getElementById('bottom-desc').textContent = h.bottom.condition;
+                    document.getElementById('bottom-wind').textContent = h.bottom.wind + ' m/s';
+                    document.getElementById('bottom-snow').textContent = h.bottom.snow + ' cm';
+                    document.getElementById('bottom-snow-day').textContent = h.bottom.snowLastDay + ' cm';
+                    document.getElementById('bottom-icon').textContent = getWeatherIconFromCondition(h.bottom.condition);
+                    setTimeout(() => applySwixColorToElement('bottom-temp', h.bottom.temperature), 50);
+                    
+                    document.getElementById('hafjell-status').className = 'status-indicator status-online';
+                    
+                    console.log('✅ Hafjell stations updated');
+                }
+                
+                // ========== UPDATE LIFTS ==========
+                if (data.hafjell && data.hafjell.lifts) {
+                    const lifts = data.hafjell.lifts;
+                    
+                    Object.keys(lifts).forEach(liftKey => {
+                        const liftElement = document.getElementById(`lift-${liftKey}`);
+                        if (liftElement) {
+                            const status = lifts[liftKey];
+                            liftElement.textContent = status.toUpperCase();
+                            liftElement.className = `lift-status ${status}`;
+                        }
+                    });
+                    
+                    document.getElementById('lifts-status').className = 'status-indicator status-online';
+                    console.log('✅ Lifts updated');
+                }
+                
+                // ========== UPDATE YR.NO FORECAST ==========
+                if (data.yr && data.yr.timeseries) {
+                    const forecastData = {
+                        properties: {
+                            timeseries: data.yr.timeseries
+                        }
+                    };
+                    
+                    displayForecast(forecastData);
+                    displayTomorrowForecast(forecastData);
+                    
+                    document.getElementById('forecast-status').className = 'status-indicator status-online';
+                    document.getElementById('tomorrow-status').className = 'status-indicator status-online';
+                    console.log('✅ Forecast updated');
+                }
+                
+                // ========== UPDATE TEMPERATURE HISTORY CHART ==========
+                if (data.tempHistory && data.tempHistory.length > 0 && tempChart) {
+                    temperatureHistory.labels = [];
+                    temperatureHistory.outdoor = [];
+                    temperatureHistory.hafjellTop = [];
+                    temperatureHistory.hafjellBottom = [];
+                    
+                    data.tempHistory.forEach(entry => {
+                        const date = new Date(entry.ts);
+                        const timeLabel = date.toLocaleTimeString('en-NO', {hour: '2-digit', minute: '2-digit'});
+                        
+                        temperatureHistory.labels.push(timeLabel);
+                        temperatureHistory.outdoor.push(entry.h);
+                        temperatureHistory.hafjellTop.push(entry.t);
+                        temperatureHistory.hafjellBottom.push(entry.b);
+                    });
+                    
+                    tempChart.data.labels = temperatureHistory.labels;
+                    tempChart.data.datasets[0].data = temperatureHistory.outdoor;
+                    tempChart.data.datasets[1].data = temperatureHistory.hafjellTop;
+                    tempChart.data.datasets[2].data = temperatureHistory.hafjellBottom;
+                    tempChart.update('none');
+                    
+                    console.log(`✅ Temperature history: ${data.tempHistory.length} points`);
+                }
+                
+                refreshWebcam();
+                updateTimestamp();
+                setTimeout(() => applyAllSwixColors(), 200);
+                
+                console.log('✅ Dashboard fully updated from cache!');
+                
+            } catch (error) {
+                console.error('❌ Error refreshing dashboard:', error);
+                
+                document.getElementById('sensor-status').className = 'status-indicator status-offline';
+                document.getElementById('hafjell-status').className = 'status-indicator status-offline';
+                document.getElementById('lifts-status').className = 'status-indicator status-offline';
+                document.getElementById('forecast-status').className = 'status-indicator status-offline';
+                document.getElementById('tomorrow-status').className = 'status-indicator status-offline';
+                
+            } finally {
+                document.querySelectorAll('.card').forEach(card => card.classList.remove('loading'));
+                
+                if (refreshBtn) {
+                    refreshBtn.disabled = false;
+                    refreshBtn.textContent = '🔄 Refresh';
+                }
+            }
         }
 
         // ========== INITIALIZATION ==========
 
         async function initDashboard() {
-            console.log('🚀 Initializing WK Snow Weather Dashboard with optimized cache...');
+            console.log('🚀 Initializing WK Snow Weather Dashboard...');
             
             updateTimestamp();
             initTempChart();
             
             await refreshAllData();
             
-            // Auto-refresh every 5 minutes
             setInterval(async () => {
                 console.log('🔄 Auto-refreshing dashboard...');
                 await refreshAllData();
@@ -1436,7 +1555,7 @@
             
             setInterval(updateTimestamp, 60 * 1000);
             
-            console.log('✅ Dashboard initialized with optimized caching');
+            console.log('✅ Dashboard initialized successfully');
         }
     </script>
 </body>
